@@ -85,6 +85,11 @@ template <typename R, typename C, typename...Args> struct type_name_impl<R(C::*)
 // Non-basic/specific types
 template <> struct type_name_impl<std::string> { static std::string value() { return "std::string"; } };
 
+// Templates
+template <template <typename...> class Template> struct template_type_name_impl;
+template <template <typename...> class Template, typename... Args>
+struct type_name_impl<Template<Args...>> { static std::string value() { return template_type_name_impl<Template>::value() + "<" + type_name_impl<Args...>::value() + ">"; } };
+
 
 template <typename T>
 std::string type_name() {

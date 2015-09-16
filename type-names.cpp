@@ -10,13 +10,19 @@ int f(char, double) { return {}; }
 float g() { return {}; }
 
 
+// Custom types
 struct Struct {
 	int dataMember;
 	void method(unsigned int, signed char) {}
 	long constMethod(long double, unsigned char, signed short) const { return {}; }
 };
-// type_name<S> specialization
-template <> struct type_name_impl<Struct> { static std::string value() { return "Struct"; } };
+
+template <typename, typename>
+struct Template {};
+
+// Specializations for custom types
+template <> struct          type_name_impl<Struct>   { static std::string value() { return "Struct"; } };
+template <> struct template_type_name_impl<Template> { static std::string value() { return "Template"; } };
 
 
 int main() {
@@ -80,4 +86,7 @@ int main() {
 	SHOW(&Struct::dataMember);
 	SHOW(&Struct::method);
 	SHOW(&Struct::constMethod);
+
+	Template<int, bool> templ;
+	SHOW(templ);
 }
