@@ -4,7 +4,7 @@
 #include <typeinfo>
 using namespace std;
 
-#define SHOW(X) cout << typeid(X).name() << '\t' << type_name(X) << '\t' << #X << endl;
+#define SHOW(X) cout << typeid(X).name() << '\t' << val_type_name(X) << '\t' << #X << endl;
 
 int f(char, double) { return {}; }
 float g() { return {}; }
@@ -21,8 +21,8 @@ template <typename, typename>
 struct Template {};
 
 // Specializations for custom types
-template <> struct          type_name_impl<Struct>   { static std::string value() { return "Struct"; } };
-template <> struct template_type_name_impl<Template> { static std::string value() { return "Template"; } };
+template <> struct       type_name<Struct>   { static std::string value() { return "Struct"; } };
+template <> struct templ_type_name<Template> { static std::string value() { return "Template"; } };
 
 
 int main() {
