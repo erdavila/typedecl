@@ -52,18 +52,18 @@ template <typename T> struct type_name_impl<T&>      { static std::string value(
 template <typename T> struct type_name_impl<T&&>     { static std::string value() { return type_name_impl<T>::value() + "&&"; } };
 
 // Arrays
-template <typename T>           struct array_details       { typedef                        T          scalar; static std::string dimensions() { return {}; } };
-template <typename T, size_t N> struct array_details<T[N]> { typedef typename array_details<T>::scalar scalar; static std::string dimensions() { return "[" + std::to_string(N) + "]" + array_details<T>::dimensions(); } };
+template <typename T>           struct array_details       { using scalar = T                                ; static std::string dimensions() { return {}; } };
+template <typename T, size_t N> struct array_details<T[N]> { using scalar = typename array_details<T>::scalar; static std::string dimensions() { return "[" + std::to_string(N) + "]" + array_details<T>::dimensions(); } };
 template <typename T, size_t N, const char*const* M>
 struct array_type_name {
 	static std::string value() {
-		typedef array_details<T[N]> ad;
-		return type_name_impl<typename array_details<T[N]>::scalar>::value() + *M + ad::dimensions();
+		using ad = array_details<T[N]>;
+		return type_name_impl<typename ad::scalar>::value() + *M + ad::dimensions();
 	}
 };
-const char* const M1 = "";    template <typename T, size_t N> struct type_name_impl<T   [N]> : array_type_name<T, N, &M1> {};
-const char* const M2 = "(&)"; template <typename T, size_t N> struct type_name_impl<T(&)[N]> : array_type_name<T, N, &M2> {};
-const char* const M3 = "(*)"; template <typename T, size_t N> struct type_name_impl<T(*)[N]> : array_type_name<T, N, &M3> {};
+static const char* const M1 = "";    template <typename T, size_t N> struct type_name_impl<T   [N]> : array_type_name<T, N, &M1> {};
+static const char* const M2 = "(&)"; template <typename T, size_t N> struct type_name_impl<T(&)[N]> : array_type_name<T, N, &M2> {};
+static const char* const M3 = "(*)"; template <typename T, size_t N> struct type_name_impl<T(*)[N]> : array_type_name<T, N, &M3> {};
 
 // Functions
 template <typename R>                  struct type_name_impl<R   ()>        { static std::string value() { return type_name_impl<R>::value() +    "()"; } };
@@ -81,9 +81,6 @@ template <typename R, typename C>                  struct type_name_impl<R(C::*)
 template <typename R, typename C, typename...Args> struct type_name_impl<R(C::*)(Args...) >      { static std::string value() { return type_name_impl<R>::value() + "(" + type_name_impl<C>::value() + "::*)(" + type_name_impl<Args...>::value() + ")"; } };
 template <typename R, typename C>                  struct type_name_impl<R(C::*)()        const> { static std::string value() { return type_name_impl<R>::value() + "(" + type_name_impl<C>::value() + "::*)() const"; } };
 template <typename R, typename C, typename...Args> struct type_name_impl<R(C::*)(Args...) const> { static std::string value() { return type_name_impl<R>::value() + "(" + type_name_impl<C>::value() + "::*)(" + type_name_impl<Args...>::value() + ") const"; } };
-
-// Non-basic/specific types
-template <> struct type_name_impl<std::string> { static std::string value() { return "std::string"; } };
 
 // Templates
 template <template <typename...> class Template> struct template_type_name_impl;

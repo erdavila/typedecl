@@ -42,9 +42,9 @@ int main() {
 	SHOW(b);
 	SHOW(0 < 1);
 	
-	int x = 7;
-	SHOW(x);
-	SHOW(&x);
+	int i = 7;
+	SHOW(i);
+	SHOW(&i);
 	
 	SHOW(0);
 	SHOW(0L);
@@ -54,9 +54,9 @@ int main() {
 	SHOW(0.0d);
 	SHOW(0.0L);
 
-	int* pointer = nullptr;
-	const int* pointerToConst = nullptr;
-	int* const constPointer = nullptr;
+	      int*       pointer             = nullptr;
+	const int*       pointerToConst      = nullptr;
+	      int* const constPointer        = nullptr;
 	const int* const constPointerToConst = nullptr;
 	SHOW(pointer);
 	SHOW(pointerToConst);
