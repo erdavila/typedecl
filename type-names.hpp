@@ -46,10 +46,12 @@ template <> struct type_name<double>                 { static std::string value(
 template <> struct type_name<long double>            { static std::string value() { return "long double"; } };
 
 // Modifiers
-template <typename T> struct type_name<const T> { static std::string value() { return type_name<T>::value() + " const"; } };
-template <typename T> struct type_name<T*>      { static std::string value() { return type_name<T>::value() + "*"; } };
-template <typename T> struct type_name<T&>      { static std::string value() { return type_name<T>::value() + "&"; } };
-template <typename T> struct type_name<T&&>     { static std::string value() { return type_name<T>::value() + "&&"; } };
+template <typename T> struct type_name<const          T> { static std::string value() { return type_name<T>::value() + " const"; } };
+template <typename T> struct type_name<      volatile T> { static std::string value() { return type_name<T>::value() + " volatile"; } };
+template <typename T> struct type_name<const volatile T> { static std::string value() { return type_name<T>::value() + " const volatile"; } };
+template <typename T> struct type_name<T*>               { static std::string value() { return type_name<T>::value() + "*"; } };
+template <typename T> struct type_name<T&>               { static std::string value() { return type_name<T>::value() + "&"; } };
+template <typename T> struct type_name<T&&>              { static std::string value() { return type_name<T>::value() + "&&"; } };
 
 // Arrays
 template <typename T>           struct array_details       { using scalar = T                                ; static std::string dimensions() { return {}; } };
@@ -77,10 +79,14 @@ template <typename R, typename...Args> struct type_name<R(*)(Args...)> { static 
 template <typename T, typename C> struct type_name<T C::*> { static std::string value() { return type_name<T>::value() + " " + type_name<C>::value() + "::*"; } };
 
 // Pointer to methods
-template <typename R, typename C>                  struct type_name<R(C::*)()>              { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)()"; } };
-template <typename R, typename C, typename...Args> struct type_name<R(C::*)(Args...) >      { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)(" + type_name<Args...>::value() + ")"; } };
-template <typename R, typename C>                  struct type_name<R(C::*)()        const> { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)() const"; } };
-template <typename R, typename C, typename...Args> struct type_name<R(C::*)(Args...) const> { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)(" + type_name<Args...>::value() + ") const"; } };
+template <typename R, typename C>                  struct type_name<R(C::*)()>                       { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)()"; } };
+template <typename R, typename C, typename...Args> struct type_name<R(C::*)(Args...) >               { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)(" + type_name<Args...>::value() + ")"; } };
+template <typename R, typename C>                  struct type_name<R(C::*)()        const>          { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)() const"; } };
+template <typename R, typename C, typename...Args> struct type_name<R(C::*)(Args...) const>          { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)(" + type_name<Args...>::value() + ") const"; } };
+template <typename R, typename C>                  struct type_name<R(C::*)()              volatile> { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)() volatile"; } };
+template <typename R, typename C, typename...Args> struct type_name<R(C::*)(Args...)       volatile> { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)(" + type_name<Args...>::value() + ") volatile"; } };
+template <typename R, typename C>                  struct type_name<R(C::*)()        const volatile> { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)() const volatile"; } };
+template <typename R, typename C, typename...Args> struct type_name<R(C::*)(Args...) const volatile> { static std::string value() { return type_name<R>::value() + "(" + type_name<C>::value() + "::*)(" + type_name<Args...>::value() + ") const volatile"; } };
 
 // Templates
 template <template <typename...> class Template> struct templ_type_name;

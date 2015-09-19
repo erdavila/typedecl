@@ -15,6 +15,8 @@ struct Struct {
 	int dataMember;
 	void method(unsigned int, signed char) {}
 	long constMethod(long double, unsigned char, signed short) const { return {}; }
+	long volatileMethod(wchar_t) volatile { return {}; }
+	long constVolatileMethod(char16_t, char32_t) const volatile { return {}; }
 };
 
 template <typename, typename>
@@ -45,7 +47,19 @@ int main() {
 	int i = 7;
 	SHOW(i);
 	SHOW(&i);
-	
+
+	const int ci = 7;
+	SHOW(ci);
+	SHOW(&ci);
+
+	volatile int vi = 7;
+	SHOW(vi);
+	SHOW(&vi);
+
+	const int volatile cvi = 7;
+	SHOW(cvi);
+	SHOW(&cvi);
+
 	SHOW(0);
 	SHOW(0L);
 	SHOW(0LL);
@@ -67,6 +81,13 @@ int main() {
 	SHOW(*constPointer);
 	SHOW(*constPointerToConst);
 	
+	const int* volatile volatilePointerToConst = nullptr;
+	volatile int* const constPointerToVolatile = nullptr;
+	SHOW(volatilePointerToConst);
+	SHOW(constPointerToVolatile);
+	SHOW(*volatilePointerToConst);
+	SHOW(*constPointerToVolatile);
+
 	int   array[3][4][5];
 	SHOW(&array);
 	SHOW( array);
@@ -86,6 +107,8 @@ int main() {
 	SHOW(&Struct::dataMember);
 	SHOW(&Struct::method);
 	SHOW(&Struct::constMethod);
+	SHOW(&Struct::volatileMethod);
+	SHOW(&Struct::constVolatileMethod);
 
 	Template<int, bool> templ;
 	SHOW(templ);
