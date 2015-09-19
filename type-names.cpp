@@ -1,10 +1,15 @@
-#include "type-names.hpp"
 #include <iostream>
 #include <string>
 #include <typeinfo>
-using namespace std;
+#include "type-names.hpp"
 
-#define SHOW(X) cout << typeid(X).name() << '\t' << val_type_name(X) << '\t' << #X << endl;
+DEFINE_TMPL_TYPE_NAME(std::basic_string);
+DEFINE_TMPL_TYPE_NAME(std::allocator);
+DEFINE_TMPL_TYPE_NAME(std::char_traits);
+
+#define SHOW(X)   std::cout << typeid(X).name() << '\t' << type_name(X)   << '\t' << #X << std::endl;
+#define SHOWT(X)  std::cout << typeid(X).name() << '\t' << type_name<X>() << '\t' << #X << std::endl;
+#define SHOWT2(X) std::cout <<                     '\t' << type_name<X>() << '\t' << #X << std::endl;
 
 int f(char, double) { return {}; }
 float g() { return {}; }
@@ -24,7 +29,7 @@ struct Template {};
 
 // Specializations for custom types
 DEFINE_TYPE_NAME(Struct);
-DEFINE_TEMPL_TYPE_NAME(Template);
+DEFINE_TMPL_TYPE_NAME(Template);
 
 
 int main() {
@@ -110,6 +115,12 @@ int main() {
 	SHOW(&Struct::volatileMethod);
 	SHOW(&Struct::constVolatileMethod);
 
-	Template<int, bool> templ;
-	SHOW(templ);
+	using Tmpl = Template<int, bool>;
+	Tmpl tmpl;
+	SHOW(tmpl);
+	SHOWT(Tmpl);
+	SHOWT2(Template);
+
+	SHOWT(std::string);
+	SHOWT2(std::basic_string);
 }
