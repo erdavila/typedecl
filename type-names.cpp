@@ -21,8 +21,8 @@ template <typename, typename>
 struct Template {};
 
 // Specializations for custom types
-template <> struct       type_name<Struct>   { static std::string value() { return "Struct"; } };
-template <> struct templ_type_name<Template> { static std::string value() { return "Template"; } };
+DEFINE_TYPE_NAME(Struct);
+DEFINE_TEMPL_TYPE_NAME(Template);
 
 
 int main() {

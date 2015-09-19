@@ -88,6 +88,10 @@ template <template <typename...> class Template, typename... Args>
 struct type_name<Template<Args...>> { static std::string value() { return templ_type_name<Template>::value() + "<" + type_name<Args...>::value() + ">"; } };
 
 
+#define DEFINE_TYPE_NAME(T)       template <> struct       type_name<T> { static std::string value() { return #T; } };
+#define DEFINE_TEMPL_TYPE_NAME(T) template <> struct templ_type_name<T> { static std::string value() { return #T; } };
+
+
 template <typename T>
 std::string val_type_name(T&&) {
 	return type_name<T>::value();
