@@ -17,5 +17,7 @@ all: $(EXE)
 clean:
 	rm -f $(EXE)
 
+$(EXE): $(MAIN_TARGET).hpp
+
 $(EXE): $(MAIN_TARGET).cpp
-	g++ -Wall -std=c++11 $< -o $@
+	g++ -Wall -std=c++1y $< -o $@

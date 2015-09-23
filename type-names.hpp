@@ -80,7 +80,7 @@ template <typename T, typename C> struct _type_name<T C::*> { static std::string
 
 // Pointer to methods
 template <typename R, typename C>                  struct _type_name<R(C::*)()>                       { static std::string value() { return _type_name<R>::value() + "(" + _type_name<C>::value() + "::*)()"; } };
-template <typename R, typename C, typename...Args> struct _type_name<R(C::*)(Args...) >               { static std::string value() { return _type_name<R>::value() + "(" + _type_name<C>::value() + "::*)(" + _type_name<Args...>::value() + ")"; } };
+template <typename R, typename C, typename...Args> struct _type_name<R(C::*)(Args...)>                { static std::string value() { return _type_name<R>::value() + "(" + _type_name<C>::value() + "::*)(" + _type_name<Args...>::value() + ")"; } };
 template <typename R, typename C>                  struct _type_name<R(C::*)()        const>          { static std::string value() { return _type_name<R>::value() + "(" + _type_name<C>::value() + "::*)() const"; } };
 template <typename R, typename C, typename...Args> struct _type_name<R(C::*)(Args...) const>          { static std::string value() { return _type_name<R>::value() + "(" + _type_name<C>::value() + "::*)(" + _type_name<Args...>::value() + ") const"; } };
 template <typename R, typename C>                  struct _type_name<R(C::*)()              volatile> { static std::string value() { return _type_name<R>::value() + "(" + _type_name<C>::value() + "::*)() volatile"; } };
