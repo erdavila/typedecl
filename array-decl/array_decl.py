@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import sys
 
-MAX_LEVELS = 7
+MAX_LEVELS = 2
 MAX_GUESSED_DECLARATIONS = 2000
+MAX_TYPEDECLS = 7
 
 
 def printerr(*args, **kwargs):
@@ -11,6 +12,7 @@ def printerr(*args, **kwargs):
 
 total_types = 0
 guessed_declarations = 0
+typedecls = 0
 
 
 class Type:
@@ -34,13 +36,21 @@ class Type:
 			declaration = '?'
 			commented_declaration_assertion = '//'
 
+		global typedecls
+		if typedecls < MAX_TYPEDECLS and declaration != '?':
+			commented_typedecl_assertion = ''
+			typedecls += 1
+		else:
+			commented_typedecl_assertion = '//'
+
+
 		printerr(declaration)
 
 		print(indent + '{')
 		print(indent_more + '// %r' % type)
 		print(indent_more + 'using %s = %s; // %s' % (type.alias, type.definition, type.description))
 		print(indent_more + commented_declaration_assertion + 'assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
-		print(indent_more + '//undefined<%s> u;' % type.alias)
+		print(indent_more + commented_typedecl_assertion + 'assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
 
 		global total_types
 		total_types += 1
@@ -290,6 +300,7 @@ def main():
 	printerr()
 	printerr('Total types:', total_types)
 	printerr('Guessed declarations:', guessed_declarations)
+	printerr('Typedecls:', typedecls)
 
 def debug():
 	type = Pointer(UnsizedArray(Const(Pointer(SizedArray(BasicType('int'))))))
