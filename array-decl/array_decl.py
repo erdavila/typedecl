@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import sys
 
-MAX_LEVELS = 2
+MAX_LEVELS = 3
 MAX_GUESSED_DECLARATIONS = 2000
-MAX_TYPEDECLS = 7
+MAX_TYPEDECLS = 30
 
 
 def printerr(*args, **kwargs):

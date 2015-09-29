@@ -2,6 +2,7 @@
 #define __ARRAYS_HPP__
 
 #include <string>
+#include <type_traits>
 
 #ifdef __CYGWIN__
 #include <sstream>
@@ -14,6 +15,7 @@ namespace std {
 namespace {
 namespace __typedecl {
 
+
 template <typename T>
 struct impl;
 
@@ -24,31 +26,54 @@ struct impl<int> {
 	}
 };
 
+
 template <typename T>
-struct impl<const T> {
+struct const_impl {
 	inline static std::string value(const std::string& suffix = "") {
 		return impl<T>::value(" const" + suffix);
 	}
 };
 
 template <typename T>
+struct impl<const T> : const_impl<T> {};
+
+
+template <typename T, bool = std::is_array<T>::value>
+struct parenthesize_if_array;
+
+template <typename T>
+struct parenthesize_if_array<T, false> {
+	inline static std::string value(const std::string& arg) {
+		return impl<T>::value(arg);
+	}
+};
+
+template <typename T>
+struct parenthesize_if_array<T, true> {
+	inline static std::string value(const std::string& arg) {
+		return impl<T>::value("(" + arg + ")");
+	}
+};
+
+
+template <typename T>
 struct impl<T*> {
 	inline static std::string value(const std::string& suffix = "") {
-		return impl<T>::value("*" + suffix);
+		return parenthesize_if_array<T>::value("*" + suffix);
 	}
 };
 
 template <typename T>
 struct impl<T&> {
 	inline static std::string value() {
-		return impl<T>::value("&");
+		return parenthesize_if_array<T>::value("&");
 	}
 };
 
 template <typename T>
 struct impl<T&&> {
 	inline static std::string value() {
-		return impl<T>::value("&&");
+		return parenthesize_if_array<T>::value("&&");
 	}
 };
 
@@ -66,6 +91,16 @@ struct impl<T[N]> {
 		return impl<T>::value(prefix + "[" + std::to_string(N) + "]");
 	}
 };
+
+
+// Required to disambiguate between <const T> and <T[]>
+template <typename T>
+struct impl<const T[]> : const_impl<T[]> {};
+
+// Required to disambiguate between <const T> and <T[N]>
+template <typename T, size_t N>
+struct impl<const T[N]> : const_impl<T[N]> {};
+
 
 } /* namespace __typedecl */
 } /* unnamed namespace */
