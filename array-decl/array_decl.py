@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import sys
 
-MAX_LEVELS = 3
+MAX_LEVELS = 7
 MAX_GUESSED_DECLARATIONS = 2000
-MAX_TYPEDECLS = 30
+MAX_TYPEDECLS = 2000
 
 
 def printerr(*args, **kwargs):
@@ -25,7 +25,7 @@ class Type:
 		indent = cls._indentation(type.level)
 		indent_more = cls._indentation(type.level+1)
 
-		printerr('%r: %s ##' % (type, type.description), end=' ')
+		printerr('%r: %s ##' % (type, type.description()), end=' ')
 
 		global guessed_declarations
 		if guessed_declarations < MAX_GUESSED_DECLARATIONS:
@@ -48,7 +48,7 @@ class Type:
 
 		print(indent + '{')
 		print(indent_more + '// %r' % type)
-		print(indent_more + 'using %s = %s; // %s' % (type.alias, type.definition, type.description))
+		print(indent_more + 'using %s = %s; // %s' % (type.alias, type.definition, type.description()))
 		print(indent_more + commented_declaration_assertion + 'assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
 		print(indent_more + commented_typedecl_assertion + 'assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
 
@@ -86,11 +86,7 @@ class BasicType(Type):
 	def definition(self):
 		return self.token
 
-	@property
-	def description(self):
-		return '[' + self.token + ']'
-
-	def raw_description(self, plural=False):
+	def description(self, plural=False):
 		descr = self.token
 		if plural:
 			descr += 's'
@@ -129,14 +125,7 @@ class Operation(Type):
 	def definition(self):
 		return self.operand.alias + self.definition_token
 
-	@property
-	def description(self):
-		return self._description()
-
-	def raw_description(self, plural=False):
-		return self._description(raw=True, plural=plural)
-
-	def _description(self, raw=False, plural=False):
+	def description(self, plural=False):
 		pluralize_operand_description = self.pluralize_operand_description
 
 		if plural:
@@ -148,10 +137,7 @@ class Operation(Type):
 		else:
 			prefix = self.description_prefix
 
-		if not raw:
-			prefix = '[' + prefix + ']'
-
-		return prefix + ' '  + self.operand.raw_description(pluralize_operand_description);
+		return prefix + ' '  + self.operand.description(pluralize_operand_description);
 
 	@property
 	def array_operations(self):
@@ -304,7 +290,7 @@ def main():
 
 def debug():
 	type = Pointer(UnsizedArray(Const(Pointer(SizedArray(BasicType('int'))))))
-	printerr(type.raw_description())
+	printerr(type.description())
 	printerr(type)
 	normalized = type.normalized()
 	printerr(normalized)
