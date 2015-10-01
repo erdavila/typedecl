@@ -352,7 +352,7 @@ def main():
 	#return debug()
 	print('#include <cassert>')
 	print('#include <type_traits>')
-	print('#include "array_decl.hpp"')
+	print('#include "typedecl.hpp"')
 	print('')
 	print('int main() {')
 	BasicType.generate('int')

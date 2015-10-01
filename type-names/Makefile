@@ -1,4 +1,4 @@
-MAIN_TARGET := array_decl
+MAIN_TARGET := type-names
 _UNAME := $(shell uname -o)
 
 ifeq ($(_UNAME), Cygwin)
@@ -16,13 +16,6 @@ all: $(EXE)
 .PHONY: clean
 clean:
 	rm -f $(EXE)
-
-.PHONY: clean-all
-clean-all: clean
-	rm -f $(MAIN_TARGET).cpp 
-
-$(MAIN_TARGET).cpp: $(MAIN_TARGET).py
-	./$< > $@
 
 $(EXE): $(MAIN_TARGET).hpp
 
