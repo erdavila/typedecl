@@ -3,7 +3,7 @@ import sys
 
 MAX_LEVELS = 7
 MAX_GUESSED_DECLARATIONS = 7500
-MAX_TYPEDECLS = 0
+MAX_TYPEDECLS = 7500
 
 
 def printerr(*args, **kwargs):
