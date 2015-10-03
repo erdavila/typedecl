@@ -2,8 +2,8 @@
 import sys
 
 MAX_LEVELS = 7
-MAX_GUESSED_DECLARATIONS = 7500
-MAX_TYPEDECLS = 7500
+MAX_GUESSED_DECLARATIONS = 7200
+MAX_TYPEDECLS = 7200
 
 
 def printerr(*args, **kwargs):
@@ -154,9 +154,12 @@ class Operation(Type):
 
 
 class CVQualified(Operation):
+	classes_by_qualifications = {}
+
 	@classmethod
 	def generate_with_operand(cls, operand):
-		if cls in CVQualification(operand):
+		if isinstance(operand, CVQualified) and \
+			  (cls.qualifications).intersection(operand.collected_qualifications()) != set():
 			return
 		super(CVQualified, cls).generate_with_operand(operand)
 
@@ -164,96 +167,56 @@ class CVQualified(Operation):
 		return self.operand.declaration(self.definition_token + suffix)
 
 	def normalized(self):
-		cv_qual = CVQualification(self)
+		if isinstance(self.operand, CVQualified):
+			qualifications = (self.qualifications).union(self.operand.qualifications)
+			cls = self.classes_by_qualifications[qualifications]
+			return cls(self.operand.operand).normalized()
 
-		if isinstance(cv_qual.operand, Array):
-			# <cv1>(array(<cv2>(x))) -> array(<cv1+cv2>(x))
-			array = cv_qual.operand
-			operand_cv_qual = CVQualification(array.operand)
-			operand = operand_cv_qual.operand
-
-			cv_qual |= operand_cv_qual
-
-			cv_qualified_operand = cv_qual.apply(operand)
-			new_array = array.__class__(cv_qualified_operand)
+		if isinstance(self.operand, Array):
+			# <cv-qualified>(array(x)) -> array(<cv-qualified>(x))
+			array = self.operand
+			cv_class = self.__class__
+			new_array_operand = cv_class(array.operand)
+			array_class = array.__class__
+			new_array = array_class(new_array_operand)
 			return new_array.normalized()
-
-		if cv_qual.operand is not self.operand:
-			# Volatile(Const(op)) -> Const(Volatile(op))
-			assert isinstance(self.operand, CVQualified)
-			assert not isinstance(cv_qual.operand, CVQualified)
-			if isinstance(self, Const):
-				assert isinstance(self.operand, Volatile)
-			if isinstance(self, Volatile):
-				assert isinstance(self.operand, Const)
-
-			cv_qualified_operand = cv_qual.apply(cv_qual.operand)
-			if self.__class__ is not cv_qualified_operand.__class__:
-				return cv_qualified_operand.normalized()
 
 		return super().normalized()
 
+	def collected_qualifications(self):
+		op = self
+		quals = set()
+		while isinstance(op, CVQualified):
+			quals.update(op.qualifications)
+			op = op.operand
+		return quals
 
-class CVQualification:
-	def __init__(self, operation=None, const=None, volatile=None):
-		if const is None:
-			assert volatile is None
-		else:
-			assert volatile is not None
-
-		if const is None and volatile is None:
-			self.const = False
-			self.volatile = False
-			self.__init_analyze(operation)
-		else:
-			self.const = const
-			self.volatile = volatile
-			self.operand = operation
-
-	def __init_analyze(self, operation):
-		while isinstance(operation, CVQualified):
-			if isinstance(operation, Const):
-				assert not self.const
-				self.const = True
-			elif isinstance(operation, Volatile):
-				assert not self.volatile
-				self.volatile = True
-			else:
-				assert False
-			operation = operation.operand
-		self.operand = operation
-
-	def __contains__(self, item):
-		if item is Const and self.const:
-			return True
-		if item is Volatile and self.volatile:
-			return True
-		return False
-
-	def apply(self, operand):
-		if self.volatile:
-			operand = Volatile(operand)
-		if self.const:
-			operand = Const(operand)
+	@staticmethod
+	def without_qualifications(operand):
+		while isinstance(operand, CVQualified):
+			operand = operand.operand
 		return operand
-
-	def __or__(self, other):
-		const = self.const or other.const
-		volatile = self.volatile or other.volatile
-		return CVQualification(const=const, volatile=volatile)
-
-	def __repr__(self):
-		return "%s(operand=%r, const=%r, volatile=%r)" % (self.__class__.__name__, self.operand, self.const, self.volatile)
 
 
 class Const(CVQualified):
 	definition_token = ' const'
 	description_prefix = 'const'
+	qualifications = frozenset(['const'])
+CVQualified.classes_by_qualifications[Const.qualifications] = Const
 
 
 class Volatile(CVQualified):
 	definition_token = ' volatile'
 	description_prefix = 'volatile'
+	qualifications = frozenset(['volatile'])
+CVQualified.classes_by_qualifications[Volatile.qualifications] = Volatile
+
+
+class ConstVolatile(Const, Volatile):
+	definition_token = ' volatile const'
+	description_prefix = 'volatile const'
+	qualifications = frozenset(['const', 'volatile'])
+CVQualified.classes_by_qualifications[ConstVolatile.qualifications] = ConstVolatile
 
 
 class ParenthesizedOperationForArray(Operation):
@@ -270,9 +233,9 @@ class Pointer(ParenthesizedOperationForArray):
 
 	@classmethod
 	def generate_with_operand(cls, operand):
-		op1 = CVQualification(operand).operand
+		op1 = CVQualified.without_qualifications(operand)
 		if isinstance(op1, Pointer):
-			op2 = CVQualification(op1.operand).operand
+			op2 = CVQualified.without_qualifications(op1.operand)
 			if isinstance(op2, Pointer):
 				return
 		super(Pointer, cls).generate_with_operand(operand)
@@ -372,6 +335,7 @@ def debug():
 	printerr(type is normalized)
 	printerr(normalized.declaration())
 	printerr('int volatile const', '# Expected')
+	sys.exit(1)
 
 
 if __name__ == '__main__':
