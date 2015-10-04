@@ -93,15 +93,15 @@ struct impl<T*> : composition {
 
 template <typename T>
 struct impl<T&> {
-	inline static std::string value() {
-		return parenthesize_if_array<T>::value("&");
+	inline static std::string value(const std::string& var_name ="") {
+		return parenthesize_if_array<T>::value("&" + var_name);
 	}
 };
 
 template <typename T>
 struct impl<T&&> {
-	inline static std::string value() {
-		return parenthesize_if_array<T>::value("&&");
+	inline static std::string value(const std::string& var_name ="") {
+		return parenthesize_if_array<T>::value("&&" + var_name);
 	}
 };
 
@@ -159,6 +159,11 @@ struct impl<const volatile T[N]> : sized_array_impl<const volatile T, N> {};
 template <typename T>
 inline std::string typedecl() {
 	return __typedecl::impl<T>::value();
+}
+
+template <typename T>
+inline std::string vardecl(const std::string& var_name) {
+	return __typedecl::impl<T>::value(" " + var_name);
 }
 
 
