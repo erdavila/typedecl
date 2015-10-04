@@ -91,8 +91,8 @@ class BasicType(Type):
 			descr += 's'
 		return descr
 
-	def declaration(self, suffix=''):
-		return self.token + suffix
+	def declaration(self, suffix='', prefix=''):
+		return prefix + self.token + suffix
 
 	@property
 	def array_operations(self):
@@ -163,8 +163,16 @@ class CVQualified(Operation):
 			return
 		super(CVQualified, cls).generate_with_operand(operand)
 
+	@property
+	def definition(self):
+		return self.definition_token + ' ' + self.operand.alias
+
 	def declaration(self, suffix=''):
-		return self.operand.declaration(self.definition_token + suffix)
+		if isinstance(self.operand, BasicType):
+			prefix = self.definition_token + ' '
+			return self.operand.declaration(suffix, prefix=prefix)
+		else:
+			return self.operand.declaration(self.definition_token + suffix)
 
 	def normalized(self):
 		if isinstance(self.operand, CVQualified):
@@ -199,22 +207,22 @@ class CVQualified(Operation):
 
 
 class Const(CVQualified):
-	definition_token = ' const'
+	definition_token = 'const'
 	description_prefix = 'const'
 	qualifications = frozenset(['const'])
 CVQualified.classes_by_qualifications[Const.qualifications] = Const
 
 
 class Volatile(CVQualified):
-	definition_token = ' volatile'
+	definition_token = 'volatile'
 	description_prefix = 'volatile'
 	qualifications = frozenset(['volatile'])
 CVQualified.classes_by_qualifications[Volatile.qualifications] = Volatile
 
 
 class ConstVolatile(Const, Volatile):
-	definition_token = ' volatile const'
-	description_prefix = 'volatile const'
+	definition_token = 'const volatile'
+	description_prefix = 'const volatile'
 	qualifications = frozenset(['const', 'volatile'])
 CVQualified.classes_by_qualifications[ConstVolatile.qualifications] = ConstVolatile
 
@@ -327,14 +335,14 @@ def main():
 	printerr('Typedecls:', typedecls)
 
 def debug():
-	type = Volatile(Const(BasicType('int')))
+	type = Pointer(Const(BasicType('int')))
 	printerr(type.description())
 	printerr(type)
 	normalized = type.normalized()
 	printerr(normalized)
 	printerr(type is normalized)
 	printerr(normalized.declaration())
-	printerr('int volatile const', '# Expected')
+	printerr('const int*', '# Expected')
 	sys.exit(1)
 
 
