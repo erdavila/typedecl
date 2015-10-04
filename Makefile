@@ -1,13 +1,11 @@
-MAIN_TARGET := typedecl
-_UNAME := $(shell uname -o)
+OBJS = test-typedecl.o test-vardecl.o main.o
+MAIN_TARGET = typedecl
+MAIN_TARGET_TEST = test-typedecl.cpp
+EXE := $(MAIN_TARGET)
 
-ifeq ($(_UNAME), Cygwin)
-  EXT := .exe
-else
-  EXT := 
-endif
-
-EXE := $(MAIN_TARGET)$(EXT)
+MAKEDEPS = g++ -Wall -std=c++1y -MM $< -o $(@:.o=.d) -MT $@ -MP
+COMPILE  = g++ -Wall -std=c++1y -c  $< -o $@
+LINK     = g++ -Wall $+ -o $@
 
 
 .PHONY: all
@@ -15,16 +13,22 @@ all: $(EXE)
 
 .PHONY: clean
 clean:
-	rm -f $(EXE)
+	rm -f *.o *.d $(EXE)
 
 .PHONY: clean-all
 clean-all: clean
-	rm -f $(MAIN_TARGET).cpp 
+	rm -f $(MAIN_TARGET_TEST)
 
-$(MAIN_TARGET).cpp: $(MAIN_TARGET).py
-	./$< > $@
 
-$(EXE): $(MAIN_TARGET).hpp
+$(EXE): $(OBJS)
+	$(LINK)
 
-$(EXE): $(MAIN_TARGET).cpp
-	g++ -Wall -std=c++1y $< -o $@
+$(MAIN_TARGET_TEST): $(MAIN_TARGET).py
+	./$< > $@  ||  (rm $@  &&  false)
+
+%.o: %.cpp
+	$(MAKEDEPS)
+	$(COMPILE)
+
+
+-include $(OBJS:.o=.d)

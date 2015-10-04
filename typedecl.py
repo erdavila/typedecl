@@ -325,11 +325,12 @@ def main():
 	print('#include <type_traits>')
 	print('#include "typedecl.hpp"')
 	print('')
-	print('int main() {')
+	print('void testTypeDecl() {')
 	BasicType.generate('int')
 	print('}')
 
 	printerr()
+	printerr('Levels:', MAX_LEVELS)
 	printerr('Total types:', total_types)
 	printerr('Guessed declarations:', guessed_declarations)
 	printerr('Typedecls:', typedecls)
