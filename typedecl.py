@@ -106,9 +106,6 @@ class BasicType(Type):
 
 
 class Operation(Type):
-	pluralize_operand_description = False
-	description_prefix_plural = None
-
 	def __init__(self, operand):
 		super().__init__(level=operand.level+1)
 		self.operand = operand
@@ -124,19 +121,12 @@ class Operation(Type):
 	def definition(self):
 		return self.operand.alias + self.definition_token
 
-	def description(self, plural=False):
-		pluralize_operand_description = self.pluralize_operand_description
-
+	def description(self, plural=False, pluralize_operand_description=False):
 		if plural:
-			if self.description_prefix_plural is None:
-				prefix = self.description_prefix
-				pluralize_operand_description = True
-			else:
-				prefix = self.description_prefix_plural
+			prefix = self.description_prefix_plural
 		else:
 			prefix = self.description_prefix
-
-		return prefix + ' '  + self.operand.description(pluralize_operand_description);
+		return prefix + ' ' + self.operand.description(plural=pluralize_operand_description);
 
 	@property
 	def array_operations(self):
@@ -166,6 +156,10 @@ class CVQualified(Operation):
 	@property
 	def definition(self):
 		return self.definition_token + ' ' + self.operand.alias
+
+	def description(self, plural=False):
+		# Forwards pluralization to the operand
+		return self.description_prefix + ' ' + self.operand.description(plural=plural);
 
 	def declaration(self, suffix=''):
 		if isinstance(self.operand, BasicType):
@@ -268,10 +262,8 @@ class RValueReference(Reference):
 
 
 class Array(Operation):
-	definition_token = '[]'
 	description_prefix = 'array of'
 	description_prefix_plural = 'arrays of'
-	pluralize_operand_description = True
 
 	@classmethod
 	def generate_with_operand(cls, operand):
@@ -284,6 +276,9 @@ class Array(Operation):
 				return
 		super(Array, cls).generate_with_operand(operand)
 
+	def description(self, plural=False):
+		return super().description(plural=plural, pluralize_operand_description=True)
+
 	def declaration(self, prefix=''):
 		return self.operand.declaration(prefix + self.definition_token)
 
@@ -293,7 +288,7 @@ class Array(Operation):
 
 
 class UnsizedArray(Array):
-	pass
+	definition_token = '[]'
 
 
 class SizedArray(Array):
