@@ -55,6 +55,10 @@ class Type:
 
 	@classmethod
 	def generate(cls, type):
+		global total_types
+		if total_types >= MAX_TYPES:
+			return
+
 		indent = cls._indentation(type.level)
 		indent_more = cls._indentation(type.level+1)
 
@@ -78,15 +82,13 @@ class Type:
 
 
 		printerr(declaration)
+		total_types += 1
 
 		print(indent + '{')
-		print(indent_more + '// %r' % type)
+		print(indent_more + '// %d: %r' % (total_types, type))
 		print(indent_more + 'using %s = %s; // %s' % (type.alias, type.definition, type.description()))
 		print(indent_more + commented_declaration_assertion + 'assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
 		print(indent_more + commented_typedecl_assertion + 'assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
-
-		global total_types
-		total_types += 1
 
 		if type.level < MAX_LEVELS:
 			Const.generate_with_operand(type)
