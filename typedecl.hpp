@@ -66,18 +66,18 @@ struct impl<const volatile T> {
 };
 
 
-template <typename T, bool = std::is_array<T>::value>
-struct parenthesize_if_array;
+template <typename T, bool = std::is_array<T>::value || std::is_function<T>::value>
+struct parenthesize_if_array_or_function;
 
 template <typename T>
-struct parenthesize_if_array<T, false> {
+struct parenthesize_if_array_or_function<T, false> {
 	inline static std::string value(const std::string& arg) {
 		return impl<T>::value(arg);
 	}
 };
 
 template <typename T>
-struct parenthesize_if_array<T, true> {
+struct parenthesize_if_array_or_function<T, true> {
 	inline static std::string value(const std::string& arg) {
 		return impl<T>::value("(" + arg + ")");
 	}
@@ -87,21 +87,21 @@ struct parenthesize_if_array<T, true> {
 template <typename T>
 struct impl<T*> : composition {
 	inline static std::string value(const std::string& suffix = "") {
-		return parenthesize_if_array<T>::value("*" + suffix);
+		return parenthesize_if_array_or_function<T>::value("*" + suffix);
 	}
 };
 
 template <typename T>
 struct impl<T&> {
 	inline static std::string value(const std::string& var_name ="") {
-		return parenthesize_if_array<T>::value("&" + var_name);
+		return parenthesize_if_array_or_function<T>::value("&" + var_name);
 	}
 };
 
 template <typename T>
 struct impl<T&&> {
 	inline static std::string value(const std::string& var_name ="") {
-		return parenthesize_if_array<T>::value("&&" + var_name);
+		return parenthesize_if_array_or_function<T>::value("&&" + var_name);
 	}
 };
 
@@ -152,6 +152,59 @@ template <typename T, size_t N>
 struct impl<const volatile T[N]> : sized_array_impl<const volatile T, N> {};
 
 
+template <typename... T>
+struct type_list_impl;
+
+template <>
+struct type_list_impl<> {
+	inline static std::string value() {
+		return "";
+	}
+};
+
+template <typename T>
+struct type_list_impl<T> {
+	inline static std::string value() {
+		return impl<T>::value();
+	}
+};
+
+template <typename T1, typename T2, typename... U>
+struct type_list_impl<T1, T2, U...> {
+	inline static std::string value() {
+		return impl<T1>::value() + ", " + type_list_impl<T2, U...>::value();
+	}
+};
+
+
+template <bool P, typename R, typename... A>
+struct function_impl;
+
+template <typename R, typename... A>
+struct function_impl<false, R, A...> {
+	inline static std::string value(const std::string& infix = "") {
+		return impl<R>::value() + infix + "(" + type_list_impl<A...>::value() + ")";
+	}
+};
+
+template <typename R, typename... A>
+struct function_impl<true, R, A...> {
+	inline static std::string value(const std::string& prefix = "") {
+		return impl<R>::value(prefix + "(" + type_list_impl<A...>::value() + ")");
+	}
+};
+
+template <typename T>
+struct is_pointer_or_reference : std::integral_constant<
+	bool,
+	std::is_pointer<T>::value || std::is_reference<T>::value
+> {};
+
+
+template <typename R, typename... A>
+struct impl<R(A...)> : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, A...> {};
+
+
 } /* namespace __typedecl */
 } /* unnamed namespace */
 
@@ -183,6 +236,8 @@ struct impl<T> : basic_type { \
 } /* unnamed namespace */
 
 
+DEFINE_TYPEDECL(void);
+DEFINE_TYPEDECL(char);
 DEFINE_TYPEDECL(int);
 
 
