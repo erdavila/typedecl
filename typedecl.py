@@ -3,9 +3,9 @@ import sys
 from itertools import repeat
 
 MAX_LEVELS = 5
-MAX_TYPES = 3000
-MAX_GUESSED_DECLARATIONS = 3000
-MAX_TYPEDECLS = 3000
+MAX_TYPES = 7000
+MAX_GUESSED_DECLARATIONS = 7000
+MAX_TYPEDECLS = 7000
 
 
 def printerr(*args, **kwargs):
@@ -18,28 +18,36 @@ def printerr(*args, **kwargs):
 	 └──Operation
 	     ├──Modifier
 	     │   ├──CVQualified
-	     │   │   ├──Const─────┐
-	     │   │   └──Volatile──┤
-	     │   │                └──ConstVolatile
+	     │   │   ├──Const
+	     │   │   │   └────────┐
+	     │   │   └──Volatile  │
+	     │   │       └────────┴──ConstVolatile
 	     │   ├──ParenthesizedModifierForArrayAndFunction
 	     │   │   ├──Pointer
 	     │   │   │   └───────────────────╥──PointerActingAsSizedArray
 	     │   │   └──Reference            ║
 	     │   │       ├──LValueReference  ║
 	     │   │       └──RValueReference  ║
-	     │   ├──ArraySizeInitializer═════╣
-	     │   └──Array                    ║
-	     │       ├──UnsizedArray         ║
-	     │       └───────────────────────╨──SizedArray
+	     │   ├──Array                    ║
+	     │   │   ├──UnsizedArray         ║
+	     │   │   └───────────────────────╥──SizedArray
+	     │   └──ArraySizeInitializer═════╝
 	     └──Function
 	         ├──FunctionRet
 	         │   ├──Function0Ret
-	         │   ├──Function1Ret
-	         │   └──Function2Ret
-	         └──FunctionArg
-	             ├──Function1Arg
-	             ├──Function2Arg1
-	             └──Function2Arg2
+	         │   │   └─────────────╥──FunctionVA0Ret
+	         │   ├──Function1Ret   ║
+	         │   │   └─────────────╥──FunctionVA1Ret
+	         │   └──Function2Ret   ║
+	         │       └─────────────╥──FunctionVA2Ret
+	         ├──FunctionArg        ║
+	         │   ├──Function1Arg   ║
+	         │   │   └─────────────╥──FunctionVA1Arg
+	         │   ├──Function2Arg1  ║
+	         │   │   └─────────────╥──FunctionVA2Arg1
+	         │   └──Function2Arg2  ║
+	         │       └─────────────╥──FunctionVA2Arg2
+	         └──FunctionVA═════════╝
 '''
 
 
@@ -104,6 +112,12 @@ class Type:
 			Function2Ret.generate_with_operand(type)
 			#Function2Arg1.generate_with_operand(type)
 			Function2Arg2.generate_with_operand(type)
+			FunctionVA0Ret.generate_with_operand(type)
+			FunctionVA1Ret.generate_with_operand(type)
+			FunctionVA1Arg.generate_with_operand(type)
+			#FunctionVA2Ret.generate_with_operand(type)
+			#FunctionVA2Arg1.generate_with_operand(type)
+			#FunctionVA2Arg2.generate_with_operand(type)
 
 		print(indent + '}')
 
@@ -516,6 +530,37 @@ class Function2Arg1(FunctionArg):
 class Function2Arg2(FunctionArg):
 	num_args = 2
 	operand_arg_index = 1
+
+
+class FunctionVA(Function):
+	@classmethod
+	def _raw_args_list(cls):
+		return super()._raw_args_list() + ['...']
+
+
+class FunctionVA0Ret(Function0Ret, FunctionVA):
+	pass
+
+
+class FunctionVA1Ret(Function1Ret, FunctionVA):
+	pass
+
+
+class FunctionVA1Arg(Function1Arg, FunctionVA):
+	pass
+
+
+class FunctionVA2Ret(Function2Ret, FunctionVA):
+	pass
+
+
+class FunctionVA2Arg1(Function2Arg1, FunctionVA):
+	pass
+
+
+class FunctionVA2Arg2(Function2Arg2, FunctionVA):
+	pass
+
 
 
 def main():

@@ -12,4 +12,7 @@ void testVarDecl() {
 	assert(vardecl<int(char)>("var") == "int var(char)");
 	assert(vardecl<void(*)()>("var") == "void(* var)()");
 	assert(vardecl<int(&&)(int)>("var") == "int(&& var)(int)");
+	assert(vardecl<int(char,...)>("var") == "int var(char, ...)");
+	assert(vardecl<void(*)(...)>("var") == "void(* var)(...)");
+	assert(vardecl<int(&&)(int,...)>("var") == "int(&& var)(int, ...)");
 }

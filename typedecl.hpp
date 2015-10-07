@@ -152,45 +152,45 @@ template <typename T, size_t N>
 struct impl<const volatile T[N]> : sized_array_impl<const volatile T, N> {};
 
 
-template <typename... T>
+template <bool VA, typename... T>
 struct type_list_impl;
 
-template <>
-struct type_list_impl<> {
+template <bool VA>
+struct type_list_impl<VA> {
 	inline static std::string value() {
-		return "";
+		return VA ? "..." : "";
 	}
 };
 
-template <typename T>
-struct type_list_impl<T> {
+template <bool VA, typename T>
+struct type_list_impl<VA, T> {
 	inline static std::string value() {
-		return impl<T>::value();
+		return impl<T>::value() + (VA ? ", ..." : "");
 	}
 };
 
-template <typename T1, typename T2, typename... U>
-struct type_list_impl<T1, T2, U...> {
+template <bool VA, typename T1, typename T2, typename... U>
+struct type_list_impl<VA, T1, T2, U...> {
 	inline static std::string value() {
-		return impl<T1>::value() + ", " + type_list_impl<T2, U...>::value();
+		return impl<T1>::value() + ", " + type_list_impl<VA, T2, U...>::value();
 	}
 };
 
 
-template <bool P, typename R, typename... A>
+template <bool P, typename R, bool VA, typename... A>
 struct function_impl;
 
-template <typename R, typename... A>
-struct function_impl<false, R, A...> {
+template <typename R, bool VA, typename... A>
+struct function_impl<false, R, VA, A...> {
 	inline static std::string value(const std::string& infix = "") {
-		return impl<R>::value() + infix + "(" + type_list_impl<A...>::value() + ")";
+		return impl<R>::value() + infix + "(" + type_list_impl<VA, A...>::value() + ")";
 	}
 };
 
-template <typename R, typename... A>
-struct function_impl<true, R, A...> {
+template <typename R, bool VA, typename... A>
+struct function_impl<true, R, VA, A...> {
 	inline static std::string value(const std::string& prefix = "") {
-		return impl<R>::value(prefix + "(" + type_list_impl<A...>::value() + ")");
+		return impl<R>::value(prefix + "(" + type_list_impl<VA, A...>::value() + ")");
 	}
 };
 
@@ -202,7 +202,10 @@ struct is_pointer_or_reference : std::integral_constant<
 
 
 template <typename R, typename... A>
-struct impl<R(A...)> : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, A...> {};
+struct impl<R(A...)>      : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, false, A...> {};
+
+template <typename R, typename... A>
+struct impl<R(A..., ...)> : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, true, A...> {};
 
 
 } /* namespace __typedecl */
