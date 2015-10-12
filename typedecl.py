@@ -4,8 +4,6 @@ from itertools import repeat
 
 MAX_LEVELS = 5
 MAX_TYPES = 7000
-MAX_GUESSED_DECLARATIONS = 7000
-MAX_TYPEDECLS = 7000
 
 
 def printerr(*args, **kwargs):
@@ -52,11 +50,6 @@ def printerr(*args, **kwargs):
 	¹: Abstract base class
 	²: Mixin
 '''
-
-
-total_types = 0
-guessed_declarations = 0
-typedecls = 0
 
 
 class Type:
@@ -562,41 +555,28 @@ class Generator:
 	class GenerationPruned(GenerationSkipped): pass
 	class OperationDisallowed(GenerationSkipped): pass
 
+	total_types = 0
+
 	def __init__(self, file):
 		self.f = file;
 
 	def generate(self, type):
-		global total_types
-		if total_types >= MAX_TYPES:
+		if Generator.total_types >= MAX_TYPES:
 			return
+		Generator.total_types += 1
 
-		printerr('%r: %s ##' % (type, type.description()), end=' ')
-
-		global guessed_declarations
-		if guessed_declarations < MAX_GUESSED_DECLARATIONS:
-			declaration = type.normalized().declaration()
-			commented_declaration_assertion = ''
-			guessed_declarations += 1
-		else:
-			declaration = '?'
-			commented_declaration_assertion = '//'
-
-		global typedecls
-		if typedecls < MAX_TYPEDECLS and declaration != '?':
-			commented_typedecl_assertion = ''
-			typedecls += 1
-		else:
-			commented_typedecl_assertion = '//'
-
-		printerr(declaration)
-		total_types += 1
+		declaration = type.normalized().declaration()
+		printerr('%d %r: %s ## %s' % (Generator.total_types, type, type.description(), declaration))
 
 		self.f.print('{')
 		self.f.ident()
-		self.f.print('// %d: %r' % (total_types, type))
-		self.f.print('using %s = %s; // %s' % (type.alias, type.definition, type.description()))
-		self.f.print(commented_declaration_assertion + 'assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
-		self.f.print(commented_typedecl_assertion + 'assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
+
+		self.f.print('// %d: %r' % (Generator.total_types, type))
+		self.f.print('// %s' % type.description())
+
+		self.f.print('using %s = %s;' % (type.alias, type.definition))
+		self.f.print('assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
+		self.f.print('assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
 
 		if type.level < MAX_LEVELS:
 			for operation in ALL_OPERATIONS:
@@ -626,9 +606,7 @@ def main():
 
 	printerr()
 	printerr('Levels:', MAX_LEVELS)
-	printerr('Total types:', total_types)
-	printerr('Guessed declarations:', guessed_declarations)
-	printerr('Typedecls:', typedecls)
+	printerr('Total types:', Generator.total_types)
 
 
 def debug():
