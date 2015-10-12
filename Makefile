@@ -24,7 +24,8 @@ $(EXE): $(OBJS)
 	$(LINK)
 
 $(MAIN_TARGET_TEST): $(MAIN_TARGET).py
-	./$< > $@  ||  (rm $@  &&  false)
+	./$< $@.tmp
+	@mv $@.tmp $@
 
 %.o: %.cpp
 	$(MAKEDEPS)

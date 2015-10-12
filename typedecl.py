@@ -67,9 +67,6 @@ class Type:
 		if total_types >= MAX_TYPES:
 			return
 
-		indent = cls._indentation(type.level)
-		indent_more = cls._indentation(type.level+1)
-
 		printerr('%r: %s ##' % (type, type.description()), end=' ')
 
 		global guessed_declarations
@@ -92,11 +89,13 @@ class Type:
 		printerr(declaration)
 		total_types += 1
 
-		print(indent + '{')
-		print(indent_more + '// %d: %r' % (total_types, type))
-		print(indent_more + 'using %s = %s; // %s' % (type.alias, type.definition, type.description()))
-		print(indent_more + commented_declaration_assertion + 'assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
-		print(indent_more + commented_typedecl_assertion + 'assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
+		global f  # :-(
+		f.print('{')
+		f.ident()
+		f.print('// %d: %r' % (total_types, type))
+		f.print('using %s = %s; // %s' % (type.alias, type.definition, type.description()))
+		f.print(commented_declaration_assertion + 'assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
+		f.print(commented_typedecl_assertion + 'assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
 
 		if type.level < MAX_LEVELS:
 			Const.generate_with_operand(type)
@@ -119,22 +118,14 @@ class Type:
 			#FunctionVA2Arg1.generate_with_operand(type)
 			#FunctionVA2Arg2.generate_with_operand(type)
 
-		print(indent + '}')
-
-	@staticmethod
-	def _indentation(level):
-		return '\t' * level
+		f.deident()
+		f.print('}')
 
 
 class BasicType(Type):
 	def __init__(self, token):
 		super().__init__(level=1)
 		self.token = token
-
-	@classmethod
-	def generate(cls, token):
-		type = BasicType(token)
-		super(BasicType, cls).generate(type)
 
 	@property
 	def definition(self):
@@ -562,22 +553,55 @@ class FunctionVA2Arg2(Function2Arg2, FunctionVA):
 	pass
 
 
+class FileWriter:
+	def __init__(self, name):
+		self.name = name
+		self.identation_level = 0
+
+	def __enter__(self):
+		self.f = open(self.name, 'wt')
+		self.print('#include <cassert>')
+		self.print('#include <type_traits>')
+		self.print('#include "typedecl.hpp"')
+		self.print('')
+		self.print('void testTypeDecl() {')
+		self.ident()
+		return self
+
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		self.deident()
+		self.print('}')
+		self.f.close()
+		return False
+
+	def print(self, line):
+		self.f.write(self._identation() + line + '\n')
+
+	def _identation(self):
+		return '\t' * self.identation_level
+
+	def ident(self):
+		self.identation_level += 1
+
+	def deident(self):
+		self.identation_level -= 1
+
 
 def main():
 	#return debug()
-	print('#include <cassert>')
-	print('#include <type_traits>')
-	print('#include "typedecl.hpp"')
-	print('')
-	print('void testTypeDecl() {')
-	BasicType.generate('int')
-	print('}')
+
+	file_name = sys.argv[1]
+	global f  # :-(
+	with FileWriter(file_name) as f:
+		type = BasicType('int')
+		Type.generate(type)
 
 	printerr()
 	printerr('Levels:', MAX_LEVELS)
 	printerr('Total types:', total_types)
 	printerr('Guessed declarations:', guessed_declarations)
 	printerr('Typedecls:', typedecls)
+
 
 def debug():
 	type = Function0Ret(LValueReference(UnsizedArray(BasicType('int'))))
