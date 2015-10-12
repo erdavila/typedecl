@@ -13,41 +13,44 @@ def printerr(*args, **kwargs):
 
 
 '''
-	Type
+	Type¹
 	 ├──BasicType
-	 └──Operation
-	     ├──Modifier
-	     │   ├──CVQualified
+	 └──Operation¹
+	     ├──Modifier¹
+	     │   ├──CVQualified¹
 	     │   │   ├──Const
 	     │   │   │   └────────┐
 	     │   │   └──Volatile  │
 	     │   │       └────────┴──ConstVolatile
-	     │   ├──ParenthesizedModifierForArrayAndFunction
+	     │   ├──ParenthesizedModifierForArrayAndFunction¹
 	     │   │   ├──Pointer
 	     │   │   │   └───────────────────╥──PointerActingAsSizedArray
-	     │   │   └──Reference            ║
+	     │   │   └──Reference¹           ║
 	     │   │       ├──LValueReference  ║
 	     │   │       └──RValueReference  ║
-	     │   ├──Array                    ║
+	     │   ├──Array¹                   ║
 	     │   │   ├──UnsizedArray         ║
 	     │   │   └───────────────────────╥──SizedArray
-	     │   └──ArraySizeInitializer═════╝
-	     └──Function
-	         ├──FunctionRet
+	     │   └──ArraySizeInitializer²════╝
+	     └──Function¹
+	         ├──FunctionRet¹
 	         │   ├──Function0Ret
 	         │   │   └─────────────╥──FunctionVA0Ret
 	         │   ├──Function1Ret   ║
 	         │   │   └─────────────╥──FunctionVA1Ret
 	         │   └──Function2Ret   ║
 	         │       └─────────────╥──FunctionVA2Ret
-	         ├──FunctionArg        ║
+	         ├──FunctionArg¹       ║
 	         │   ├──Function1Arg   ║
 	         │   │   └─────────────╥──FunctionVA1Arg
 	         │   ├──Function2Arg1  ║
 	         │   │   └─────────────╥──FunctionVA2Arg1
 	         │   └──Function2Arg2  ║
 	         │       └─────────────╥──FunctionVA2Arg2
-	         └──FunctionVA═════════╝
+	         └──FunctionVA²════════╝
+
+	¹: Abstract base class
+	²: Mixin
 '''
 
 
@@ -60,66 +63,6 @@ class Type:
 	def __init__(self, level):
 		self.level = level
 		self.alias = 'A%d' % self.level
-
-	@classmethod
-	def generate(cls, type):
-		global total_types
-		if total_types >= MAX_TYPES:
-			return
-
-		printerr('%r: %s ##' % (type, type.description()), end=' ')
-
-		global guessed_declarations
-		if guessed_declarations < MAX_GUESSED_DECLARATIONS:
-			declaration = type.normalized().declaration()
-			commented_declaration_assertion = ''
-			guessed_declarations += 1
-		else:
-			declaration = '?'
-			commented_declaration_assertion = '//'
-
-		global typedecls
-		if typedecls < MAX_TYPEDECLS and declaration != '?':
-			commented_typedecl_assertion = ''
-			typedecls += 1
-		else:
-			commented_typedecl_assertion = '//'
-
-
-		printerr(declaration)
-		total_types += 1
-
-		global f  # :-(
-		f.print('{')
-		f.ident()
-		f.print('// %d: %r' % (total_types, type))
-		f.print('using %s = %s; // %s' % (type.alias, type.definition, type.description()))
-		f.print(commented_declaration_assertion + 'assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
-		f.print(commented_typedecl_assertion + 'assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
-
-		if type.level < MAX_LEVELS:
-			Const.generate_with_operand(type)
-			Volatile.generate_with_operand(type)
-			Pointer.generate_with_operand(type)
-			LValueReference.generate_with_operand(type)
-			RValueReference.generate_with_operand(type)
-			UnsizedArray.generate_with_operand(type)
-			SizedArray.generate_with_operand(type)
-			Function0Ret.generate_with_operand(type)
-			#Function1Ret.generate_with_operand(type)
-			#Function1Arg.generate_with_operand(type)
-			Function2Ret.generate_with_operand(type)
-			#Function2Arg1.generate_with_operand(type)
-			Function2Arg2.generate_with_operand(type)
-			FunctionVA0Ret.generate_with_operand(type)
-			FunctionVA1Ret.generate_with_operand(type)
-			FunctionVA1Arg.generate_with_operand(type)
-			#FunctionVA2Ret.generate_with_operand(type)
-			#FunctionVA2Arg1.generate_with_operand(type)
-			#FunctionVA2Arg2.generate_with_operand(type)
-
-		f.deident()
-		f.print('}')
 
 
 class BasicType(Type):
@@ -157,9 +100,8 @@ class Operation(Type):
 		self.operand = operand
 
 	@classmethod
-	def generate_with_operand(cls, operand):
-		type = cls(operand)
-		cls.generate(type)
+	def accept_operand(cls, operand):
+		pass
 
 	def normalized(self):
 		normalized_operand = self.operand.normalized()
@@ -180,11 +122,11 @@ class Modifier(Operation):
 	description_prefix_plural = None
 
 	@classmethod
-	def generate_with_operand(cls, operand):
+	def accept_operand(cls, operand):
 		if isinstance(operand, Reference):
 			# modifier(reference(x))
-			return
-		super().generate_with_operand(operand)
+			raise Generator.OperationDisallowed('Cannot apply modifier to reference')
+		super().accept_operand(operand)
 
 	@property
 	def definition(self):
@@ -202,11 +144,12 @@ class CVQualified(Modifier):
 	classes_by_qualifications = {}
 
 	@classmethod
-	def generate_with_operand(cls, operand):
+	def accept_operand(cls, operand):
 		if isinstance(operand, CVQualified) and \
 			  (cls.qualifications).intersection(operand.collected_qualifications()) != set():
-			return
-		super(CVQualified, cls).generate_with_operand(operand)
+			# cvQualified1(cvQualified2(x))  &&  cvQualified1 and cvQualified2 have qualifications in common
+			raise Generator.OperationDisallowed('cv-qualification in common')
+		super(CVQualified, cls).accept_operand(operand)
 
 	@property
 	def definition(self):
@@ -294,13 +237,14 @@ class Pointer(ParenthesizedModifierForArrayAndFunction):
 	description_prefix_plural = 'pointers to'
 
 	@classmethod
-	def generate_with_operand(cls, operand):
+	def accept_operand(cls, operand):
 		op1 = CVQualified.without_qualifications(operand)
 		if isinstance(op1, Pointer):
 			op2 = CVQualified.without_qualifications(op1.operand)
 			if isinstance(op2, Pointer):
-				return
-		super(Pointer, cls).generate_with_operand(operand)
+				# Pointer(Pointer(x))
+				raise Generator.GenerationPruned('At most 2 levels of pointers')
+		super(Pointer, cls).accept_operand(operand)
 
 	def declaration(self, suffix=''):
 		return super().declaration(self.definition_token + suffix)
@@ -343,19 +287,21 @@ class Array(Modifier):
 	description_prefix_plural = 'arrays of'
 
 	@classmethod
-	def generate_with_operand(cls, operand):
+	def accept_operand(cls, operand):
 		unqualified_operand = CVQualified.without_qualifications(operand)
 		if isinstance(unqualified_operand, Function):
-			return
+			# array(function(x))
+			raise Generator.OperationDisallowed('Cannot make array of functions')
 
 		operand_array_operations = operand.array_operations
 		if len(operand_array_operations) > 0:
 			if len(operand_array_operations) >= 3:
-				return
+				raise Generator.GenerationPruned('At most 3 dimensions')
 			last_array_operation = operand_array_operations[-1]
 			if isinstance(last_array_operation, UnsizedArray):
-				return
-		super(Array, cls).generate_with_operand(operand)
+				# array(UnsizedArray(x))
+				raise Generator.OperationDisallowed('Cannot make array of unsized arrays')
+		super(Array, cls).accept_operand(operand)
 
 	def description(self, plural=False):
 		return super().description(plural=plural, pluralize_operand_description=True)
@@ -410,12 +356,13 @@ class Function(Operation):
 
 class FunctionRet(Function):
 	@classmethod
-	def generate_with_operand(cls, operand):
+	def accept_operand(cls, operand):
 		unqualified_operand = CVQualified.without_qualifications(operand)
 		if isinstance(unqualified_operand, (Array, Function)):
-			return
+			# functionRet(array(x))  or  functionRet(function(x))
+			raise Generator.OperationDisallowed('Cannot return array or function')
 
-		super(FunctionRet, cls).generate_with_operand(operand)
+		super(FunctionRet, cls).accept_operand(operand)
 
 	def declaration(self, prefix=''):
 		unqualified_operand = CVQualified.without_qualifications(self.operand)
@@ -432,13 +379,13 @@ class FunctionRet(Function):
 
 class FunctionArg(Function):
 	@classmethod
-	def generate_with_operand(cls, operand):
+	def accept_operand(cls, operand):
 		if isinstance(operand, Reference):
 			reference = operand
 			unqualified_reference_operand = CVQualified.without_qualifications(reference.operand)
 			if isinstance(unqualified_reference_operand, UnsizedArray):
-				# functionArg(reference(<cv-qualified>(UnsizedArray(x))))
-				return
+				# functionArg(reference(UnsizedArray(x)))
+				raise Generator.OperationDisallowed('Function parameter cannot be reference to unsized array')
 
 			nonreference_operand = operand.operand
 		else:
@@ -449,11 +396,11 @@ class FunctionArg(Function):
 			pointer = unqualified_operand
 			unqualified_pointer_operand = CVQualified.without_qualifications(pointer.operand)
 			if isinstance(unqualified_pointer_operand, UnsizedArray):
-				# functionArg(cv-Pointer+(cv-UnsizedArray(x)))
-				return
+				# functionArg(Pointer(UnsizedArray(x)))
+				raise Generator.OperationDisallowed('Function parameter cannot be pointer to unsized array')
 			unqualified_operand = unqualified_pointer_operand
 
-		return super().generate_with_operand(operand)
+		super().accept_operand(operand)
 
 	def normalized(self):
 		unqualified_operand = CVQualified.without_qualifications(self.operand)
@@ -553,6 +500,29 @@ class FunctionVA2Arg2(Function2Arg2, FunctionVA):
 	pass
 
 
+ALL_OPERATIONS = [
+	Const,
+	Volatile,
+	Pointer,
+	LValueReference,
+	RValueReference,
+	UnsizedArray,
+	SizedArray,
+	Function0Ret,
+	#Function1Ret,
+	#Function1Arg,
+	Function2Ret,
+	#Function2Arg1,
+	Function2Arg2,
+	FunctionVA0Ret,
+	FunctionVA1Ret,
+	FunctionVA1Arg,
+	#FunctionVA2Ret,
+	#FunctionVA2Arg1,
+	#FunctionVA2Arg2,
+]
+
+
 class FileWriter:
 	def __init__(self, name):
 		self.name = name
@@ -587,14 +557,72 @@ class FileWriter:
 		self.identation_level -= 1
 
 
+class Generator:
+	class GenerationSkipped(Exception): pass
+	class GenerationPruned(GenerationSkipped): pass
+	class OperationDisallowed(GenerationSkipped): pass
+
+	def __init__(self, file):
+		self.f = file;
+
+	def generate(self, type):
+		global total_types
+		if total_types >= MAX_TYPES:
+			return
+
+		printerr('%r: %s ##' % (type, type.description()), end=' ')
+
+		global guessed_declarations
+		if guessed_declarations < MAX_GUESSED_DECLARATIONS:
+			declaration = type.normalized().declaration()
+			commented_declaration_assertion = ''
+			guessed_declarations += 1
+		else:
+			declaration = '?'
+			commented_declaration_assertion = '//'
+
+		global typedecls
+		if typedecls < MAX_TYPEDECLS and declaration != '?':
+			commented_typedecl_assertion = ''
+			typedecls += 1
+		else:
+			commented_typedecl_assertion = '//'
+
+		printerr(declaration)
+		total_types += 1
+
+		self.f.print('{')
+		self.f.ident()
+		self.f.print('// %d: %r' % (total_types, type))
+		self.f.print('using %s = %s; // %s' % (type.alias, type.definition, type.description()))
+		self.f.print(commented_declaration_assertion + 'assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
+		self.f.print(commented_typedecl_assertion + 'assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
+
+		if type.level < MAX_LEVELS:
+			for operation in ALL_OPERATIONS:
+				self.generate_with(operation, operand=type)
+
+		self.f.deident()
+		self.f.print('}')
+
+	def generate_with(self, operation, operand):
+		try:
+			operation.accept_operand(operand)
+		except self.GenerationSkipped:
+			pass
+		else:
+			type = operation(operand)
+			self.generate(type)
+
+
 def main():
 	#return debug()
 
 	file_name = sys.argv[1]
-	global f  # :-(
 	with FileWriter(file_name) as f:
 		type = BasicType('int')
-		Type.generate(type)
+		generator = Generator(f)
+		generator.generate(type)
 
 	printerr()
 	printerr('Levels:', MAX_LEVELS)
