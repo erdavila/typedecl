@@ -172,17 +172,31 @@ struct impl<const volatile T[N]> : sized_array_impl<const volatile T, N> {};
 template <bool VA, typename... T>
 struct type_list_impl;
 
-template <bool VA>
-struct type_list_impl<VA> {
+template <>
+struct type_list_impl<true> {
 	inline static std::string value() {
-		return VA ? "..." : "";
+		return "...";
 	}
 };
 
-template <bool VA, typename T>
-struct type_list_impl<VA, T> {
+template <>
+struct type_list_impl<false> {
 	inline static std::string value() {
-		return static_cast<std::string>(impl<T>::value()) + (VA ? ", ..." : "");
+		return "";
+	}
+};
+
+template <typename T>
+struct type_list_impl<true, T> {
+	inline static std::string value() {
+		return static_cast<std::string>(impl<T>::value()) + ", ...";
+	}
+};
+
+template <typename T>
+struct type_list_impl<false, T> {
+	inline static std::string value() {
+		return static_cast<std::string>(impl<T>::value());
 	}
 };
 
