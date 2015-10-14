@@ -16,6 +16,23 @@ namespace {
 namespace __typedecl {
 
 
+struct split_string {
+	std::string begin;
+	std::string end;
+	explicit operator std::string() const {
+		return begin + end;
+	}
+};
+
+inline split_string operator+(const std::string& s, const split_string& ss) {
+	return { s + ss.begin, ss.end };
+}
+
+inline split_string operator+(const split_string& ss, const std::string& s) {
+	return { ss.begin, ss.end + s };
+}
+
+
 enum type_type { BASICTYPE, COMPOSITION };
 struct basic_type { static constexpr type_type type = BASICTYPE; };
 struct composition { static constexpr type_type type = COMPOSITION; };
@@ -30,14 +47,14 @@ struct prefix_cv_qual_if_basictype;
 
 template <typename T>
 struct prefix_cv_qual_if_basictype<T, BASICTYPE> {
-	inline static std::string value(const std::string& cv_qual, const std::string& suffix) {
-		return impl<T>::value(cv_qual, suffix);
+	inline static split_string value(const std::string& cv_qual, const split_string& suffix) {
+		return impl<T>::value_with_cv_qual(cv_qual, suffix);
 	}
 };
 
 template <typename T>
 struct prefix_cv_qual_if_basictype<T, COMPOSITION> {
-	inline static std::string value(const std::string& cv_qual, const std::string& suffix) {
+	inline static split_string value(const std::string& cv_qual, const split_string& suffix) {
 		return impl<T>::value(cv_qual + suffix);
 	}
 };
@@ -45,14 +62,14 @@ struct prefix_cv_qual_if_basictype<T, COMPOSITION> {
 
 template <typename T>
 struct impl<const T> {
-	inline static std::string value(const std::string& suffix = "") {
+	inline static split_string value(const split_string& suffix = {}) {
 		return prefix_cv_qual_if_basictype<T>::value("const", suffix);
 	}
 };
 
 template <typename T>
 struct impl<volatile T> {
-	inline static std::string value(const std::string& suffix = "") {
+	inline static split_string value(const split_string& suffix = {}) {
 		return prefix_cv_qual_if_basictype<T>::value("volatile", suffix);
 	}
 };
@@ -60,7 +77,7 @@ struct impl<volatile T> {
 // Required to disambiguate between <const T> and <volatile T>
 template <typename T>
 struct impl<const volatile T> {
-	inline static std::string value(const std::string& suffix = "") {
+	inline static split_string value(const split_string& suffix = {}) {
 		return prefix_cv_qual_if_basictype<T>::value("const volatile", suffix);
 	}
 };
@@ -71,14 +88,14 @@ struct parenthesize_if_array_or_function;
 
 template <typename T>
 struct parenthesize_if_array_or_function<T, false> {
-	inline static std::string value(const std::string& arg) {
+	inline static split_string value(const split_string& arg) {
 		return impl<T>::value(arg);
 	}
 };
 
 template <typename T>
 struct parenthesize_if_array_or_function<T, true> {
-	inline static std::string value(const std::string& arg) {
+	inline static split_string value(const split_string& arg) {
 		return impl<T>::value("(" + arg + ")");
 	}
 };
@@ -86,29 +103,29 @@ struct parenthesize_if_array_or_function<T, true> {
 
 template <typename T>
 struct impl<T*> : composition {
-	inline static std::string value(const std::string& suffix = "") {
+	inline static split_string value(const split_string& suffix = {}) {
 		return parenthesize_if_array_or_function<T>::value("*" + suffix);
 	}
 };
 
 template <typename T>
 struct impl<T&> {
-	inline static std::string value(const std::string& var_name ="") {
-		return parenthesize_if_array_or_function<T>::value("&" + var_name);
+	inline static split_string value(const split_string& suffix = {}) {
+		return parenthesize_if_array_or_function<T>::value("&" + suffix);
 	}
 };
 
 template <typename T>
 struct impl<T&&> {
-	inline static std::string value(const std::string& var_name ="") {
-		return parenthesize_if_array_or_function<T>::value("&&" + var_name);
+	inline static split_string value(const split_string& suffix = {}) {
+		return parenthesize_if_array_or_function<T>::value("&&" + suffix);
 	}
 };
 
 
 template <typename T>
 struct array_impl : composition {
-	inline static std::string value(const std::string& prefix = "") {
+	inline static split_string value(const split_string& prefix = {}) {
 		return impl<T>::value(prefix + "[]");
 	}
 };
@@ -131,8 +148,8 @@ struct impl<const volatile T[]> : array_impl<const volatile T> {};
 
 template <typename T, size_t N>
 struct sized_array_impl : composition {
-	inline static std::string value(const std::string& prefix = "") {
-		return impl<T>::value(prefix + "[" + std::to_string(N) + "]");
+	inline static split_string value(const split_string& prefix = {}) {
+		return impl<T>::value(prefix + ("[" + std::to_string(N) + "]"));
 	}
 };
 
@@ -165,14 +182,14 @@ struct type_list_impl<VA> {
 template <bool VA, typename T>
 struct type_list_impl<VA, T> {
 	inline static std::string value() {
-		return impl<T>::value() + (VA ? ", ..." : "");
+		return static_cast<std::string>(impl<T>::value()) + (VA ? ", ..." : "");
 	}
 };
 
 template <bool VA, typename T1, typename T2, typename... U>
 struct type_list_impl<VA, T1, T2, U...> {
 	inline static std::string value() {
-		return impl<T1>::value() + ", " + type_list_impl<VA, T2, U...>::value();
+		return static_cast<std::string>(impl<T1>::value()) + ", " + type_list_impl<VA, T2, U...>::value();
 	}
 };
 
@@ -182,14 +199,14 @@ struct function_impl;
 
 template <typename R, bool VA, typename... A>
 struct function_impl<false, R, VA, A...> {
-	inline static std::string value(const std::string& infix = "") {
-		return impl<R>::value() + infix + "(" + type_list_impl<VA, A...>::value() + ")";
+	inline static split_string value(const split_string& infix = {}) {
+		return static_cast<std::string>(impl<R>::value()) + infix + "(" + type_list_impl<VA, A...>::value() + ")";
 	}
 };
 
 template <typename R, bool VA, typename... A>
 struct function_impl<true, R, VA, A...> {
-	inline static std::string value(const std::string& prefix = "") {
+	inline static split_string value(const split_string& prefix = {}) {
 		return impl<R>::value(prefix + "(" + type_list_impl<VA, A...>::value() + ")");
 	}
 };
@@ -214,29 +231,31 @@ struct impl<R(A..., ...)> : function_impl<is_pointer_or_reference<typename std::
 
 template <typename T>
 inline std::string typedecl() {
-	return __typedecl::impl<T>::value();
+	__typedecl::split_string ss = __typedecl::impl<T>::value();
+	return ss.begin + ss.end;
 }
 
 template <typename T>
 inline std::string vardecl(const std::string& var_name) {
-	return __typedecl::impl<T>::value(" " + var_name);
+	__typedecl::split_string ss = __typedecl::impl<T>::value();
+	return ss.begin + " " + var_name + ss.end;
 }
 
 
 #define DEFINE_TYPEDECL(T) \
-namespace { \
-namespace __typedecl { \
-template <> \
-struct impl<T> : basic_type { \
-	inline static std::string value(const std::string& suffix = "") { \
-		return #T + suffix; \
-	} \
-	inline static std::string value(const std::string& cv_qual, const std::string& suffix) { \
-		return cv_qual + " " #T + suffix; \
-	} \
-}; \
-} /* namespace __typedecl */ \
-} /* unnamed namespace */
+	namespace { \
+	namespace __typedecl { \
+	template <> \
+	struct impl<T> : basic_type { \
+		inline static split_string value(const split_string& suffix = {}) { \
+			return #T + suffix; \
+		} \
+		inline static split_string value_with_cv_qual(const std::string& cv_qual, const split_string& suffix) { \
+			return (cv_qual + " " #T) + suffix; \
+		} \
+	}; \
+	} /* namespace __typedecl */ \
+	} /* unnamed namespace */
 
 
 DEFINE_TYPEDECL(void);
