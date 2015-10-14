@@ -33,29 +33,32 @@ inline split_string operator+(const split_string& ss, const std::string& s) {
 }
 
 
-enum type_type { BASICTYPE, COMPOSITION };
-struct basic_type { static constexpr type_type type = BASICTYPE; };
-struct composition { static constexpr type_type type = COMPOSITION; };
-
-
 template <typename T>
 struct impl;
 
 
-template <typename T, type_type = impl<T>::type>
-struct prefix_cv_qual_if_basictype;
-
 template <typename T>
-struct prefix_cv_qual_if_basictype<T, BASICTYPE> {
-	inline static split_string value(const std::string& cv_qual, const split_string& suffix) {
-		return impl<T>::value_with_cv_qual(cv_qual, suffix);
+struct prefix_cv_qual_if_basictype {
+	/*
+	 * == SFINAE ==
+	 * If impl<T> has a static member function named "value_with_cv_qual", then
+	 * the forward() overload below is defined, and the call for forward() will
+	 * prefer this overload over the other one that has varargs ("...").
+	 * If impl<T> does not have such member, then the varargs overload is the
+	 * only option.
+	 */
+	template <typename I>
+	inline static split_string forward(const std::string& cv_qual, const split_string& suffix, decltype(I::value_with_cv_qual)*) {
+		return I::value_with_cv_qual(cv_qual, suffix);
 	}
-};
 
-template <typename T>
-struct prefix_cv_qual_if_basictype<T, COMPOSITION> {
+	template <typename I>
+	inline static split_string forward(const std::string& cv_qual, const split_string& suffix, ...) {
+		return I::value(cv_qual + suffix);
+	}
+
 	inline static split_string value(const std::string& cv_qual, const split_string& suffix) {
-		return impl<T>::value(cv_qual + suffix);
+		return forward<impl<T>>(cv_qual, suffix, nullptr);
 	}
 };
 
@@ -102,7 +105,7 @@ struct parenthesize_if_array_or_function<T, true> {
 
 
 template <typename T>
-struct impl<T*> : composition {
+struct impl<T*> {
 	inline static split_string value(const split_string& suffix = {}) {
 		return parenthesize_if_array_or_function<T>::value("*" + suffix);
 	}
@@ -124,7 +127,7 @@ struct impl<T&&> {
 
 
 template <typename T>
-struct array_impl : composition {
+struct array_impl {
 	inline static split_string value(const split_string& prefix = {}) {
 		return impl<T>::value(prefix + "[]");
 	}
@@ -147,7 +150,7 @@ struct impl<const volatile T[]> : array_impl<const volatile T> {};
 
 
 template <typename T, size_t N>
-struct sized_array_impl : composition {
+struct sized_array_impl {
 	inline static split_string value(const split_string& prefix = {}) {
 		return impl<T>::value(prefix + ("[" + std::to_string(N) + "]"));
 	}
@@ -255,7 +258,7 @@ inline std::string namedecl(const std::string& name) {
 	namespace { \
 	namespace __typedecl { \
 	template <> \
-	struct impl<T> : basic_type { \
+	struct impl<T> { \
 		inline static split_string value(const split_string& suffix = {}) { \
 			return #T + suffix; \
 		} \
