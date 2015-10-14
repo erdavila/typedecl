@@ -86,7 +86,13 @@ struct impl<const volatile T> {
 };
 
 
-template <typename T, bool = std::is_array<T>::value || std::is_function<T>::value>
+template <typename T>
+struct is_array_or_function : std::integral_constant<
+	bool,
+	std::is_array<T>::value || std::is_function<T>::value
+> {};
+
+template <typename T, bool = is_array_or_function<T>::value>
 struct parenthesize_if_array_or_function;
 
 template <typename T>
@@ -229,12 +235,14 @@ struct is_pointer_or_reference : std::integral_constant<
 	std::is_pointer<T>::value || std::is_reference<T>::value
 > {};
 
+template <typename R, typename... A>
+struct function_args_impl : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, A...> {};
 
 template <typename R, typename... A>
-struct impl<R(A...)>      : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, A...> {};
+struct impl<R(A...)>      : function_args_impl<R, A...> {};
 
 template <typename R, typename... A>
-struct impl<R(A..., ...)> : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, A..., varargs> {};
+struct impl<R(A..., ...)> : function_args_impl<R, A..., varargs> {};
 
 
 } /* namespace __typedecl */
