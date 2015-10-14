@@ -169,59 +169,54 @@ template <typename T, size_t N>
 struct impl<const volatile T[N]> : sized_array_impl<const volatile T, N> {};
 
 
-template <bool VA, typename... T>
+template <typename... T>
 struct type_list_impl;
 
 template <>
-struct type_list_impl<true> {
-	inline static std::string value() {
-		return "...";
-	}
-};
-
-template <>
-struct type_list_impl<false> {
+struct type_list_impl<> {
 	inline static std::string value() {
 		return "";
 	}
 };
 
-template <typename T>
-struct type_list_impl<true, T> {
+struct varargs;
+
+template <>
+struct type_list_impl<varargs> {
 	inline static std::string value() {
-		return static_cast<std::string>(impl<T>::value()) + ", ...";
+		return "...";
 	}
 };
 
 template <typename T>
-struct type_list_impl<false, T> {
+struct type_list_impl<T> {
 	inline static std::string value() {
 		return static_cast<std::string>(impl<T>::value());
 	}
 };
 
-template <bool VA, typename T1, typename T2, typename... U>
-struct type_list_impl<VA, T1, T2, U...> {
+template <typename T1, typename T2, typename... U>
+struct type_list_impl<T1, T2, U...> {
 	inline static std::string value() {
-		return static_cast<std::string>(impl<T1>::value()) + ", " + type_list_impl<VA, T2, U...>::value();
+		return type_list_impl<T1>::value() + ", " + type_list_impl<T2, U...>::value();
 	}
 };
 
 
-template <bool P, typename R, bool VA, typename... A>
+template <bool RIsPtrOrRef, typename R, typename... A>
 struct function_impl;
 
-template <typename R, bool VA, typename... A>
-struct function_impl<false, R, VA, A...> {
+template <typename R, typename... A>
+struct function_impl<false, R, A...> {
 	inline static split_string value(const split_string& infix = {}) {
-		return static_cast<std::string>(impl<R>::value()) + infix + "(" + type_list_impl<VA, A...>::value() + ")";
+		return static_cast<std::string>(impl<R>::value()) + infix + "(" + type_list_impl<A...>::value() + ")";
 	}
 };
 
-template <typename R, bool VA, typename... A>
-struct function_impl<true, R, VA, A...> {
+template <typename R, typename... A>
+struct function_impl<true, R, A...> {
 	inline static split_string value(const split_string& prefix = {}) {
-		return impl<R>::value(prefix + "(" + type_list_impl<VA, A...>::value() + ")");
+		return impl<R>::value(prefix + "(" + type_list_impl<A...>::value() + ")");
 	}
 };
 
@@ -233,10 +228,10 @@ struct is_pointer_or_reference : std::integral_constant<
 
 
 template <typename R, typename... A>
-struct impl<R(A...)>      : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, false, A...> {};
+struct impl<R(A...)>      : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, A...> {};
 
 template <typename R, typename... A>
-struct impl<R(A..., ...)> : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, true, A...> {};
+struct impl<R(A..., ...)> : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, A..., varargs> {};
 
 
 } /* namespace __typedecl */
