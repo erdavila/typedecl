@@ -1,4 +1,4 @@
-OBJS = test-typedecl.o test-vardecl.o main.o
+OBJS = test-typedecl.o test-namedecl.o main.o
 MAIN_TARGET = typedecl
 MAIN_TARGET_TEST = test-typedecl.cpp
 EXE := $(MAIN_TARGET)

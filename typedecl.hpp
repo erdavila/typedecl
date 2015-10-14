@@ -236,9 +236,9 @@ inline std::string typedecl() {
 }
 
 template <typename T>
-inline std::string vardecl(const std::string& var_name) {
+inline std::string namedecl(const std::string& name) {
 	__typedecl::split_string ss = __typedecl::impl<T>::value();
-	return ss.begin + " " + var_name + ss.end;
+	return ss.begin + " " + name + ss.end;
 }
 
 

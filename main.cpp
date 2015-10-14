@@ -1,7 +1,7 @@
 void testTypeDecl();
-void testVarDecl();
+void testNameDecl();
 
 int main() {
 	testTypeDecl();
-	testVarDecl();
+	testNameDecl();
 }
