@@ -146,15 +146,19 @@ struct cvqualified_impl<T, CVQualSS, true> {
 template <typename T, typename CVQualSS>
 struct cvqualified_impl<T, CVQualSS, false> {};
 
+using const_ss = static_string::static_string<char, 'c','o','n','s','t'>;
+
 template <typename T>
-struct impl<const T> : cvqualified_impl<T, static_string::static_string<char, 'c','o','n','s','t'>> {
+struct impl<const T> : cvqualified_impl<T, const_ss> {
 	inline static split_string value(const split_string& suffix = {}) {
 		return _prefix_cv_qual_if_basictype<T>::value("const", suffix);
 	}
 };
 
+using volatile_ss = static_string::static_string<char, 'v','o','l','a','t','i','l','e'>;
+
 template <typename T>
-struct impl<volatile T> : cvqualified_impl<T, static_string::static_string<char, 'v','o','l','a','t','i','l','e'>> {
+struct impl<volatile T> : cvqualified_impl<T, volatile_ss> {
 	inline static split_string value(const split_string& suffix = {}) {
 		return _prefix_cv_qual_if_basictype<T>::value("volatile", suffix);
 	}
@@ -162,7 +166,9 @@ struct impl<volatile T> : cvqualified_impl<T, static_string::static_string<char,
 
 // Required to disambiguate between <const T> and <volatile T>
 template <typename T>
-struct impl<const volatile T> {
+struct impl<const volatile T>
+	: cvqualified_impl<T, static_string::concat<const_ss, space_ss, volatile_ss>>
+{
 	inline static split_string value(const split_string& suffix = {}) {
 		return _prefix_cv_qual_if_basictype<T>::value("const volatile", suffix);
 	}
