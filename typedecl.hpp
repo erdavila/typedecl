@@ -262,7 +262,9 @@ struct impl<T&>
 };
 
 template <typename T>
-struct impl<T&&> {
+struct impl<T&&>
+	: address_access_impl<T, static_string::static_string<char, '&','&'>>
+{
 	inline static split_string value(const split_string& suffix = {}) {
 		return _parenthesize_if_array_or_function<T>::value("&&" + suffix);
 	}
