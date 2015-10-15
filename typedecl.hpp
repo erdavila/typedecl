@@ -252,8 +252,22 @@ struct impl<T*> : pointer_impl<T> {
 	}
 };
 
+template <typename T, bool = has_ssstring<T>::value>
+struct lvalue_ref_impl;
+
 template <typename T>
-struct impl<T&> {
+struct lvalue_ref_impl<T, true> {
+	using _token_ss = static_string::static_string<char, '&'>;
+
+	template <typename SuffixSSS = empty_sss>
+	using ssstring = typename parenthesize_if_array_or_function<T>::template ssstring<sssconcat<_token_ss, SuffixSSS>>;
+};
+
+template <typename T>
+struct lvalue_ref_impl<T, false> {};
+
+template <typename T>
+struct impl<T&> : lvalue_ref_impl<T> {
 	inline static split_string value(const split_string& suffix = {}) {
 		return _parenthesize_if_array_or_function<T>::value("&" + suffix);
 	}
