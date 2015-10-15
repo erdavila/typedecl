@@ -3,8 +3,8 @@
 
 void testNameDecl() {
 	assert(namedecl<int>("name") == "int name");
-	assert(namedecl<int&>("name") == "int& name");
 	assert(namedecl<const int>("name") == "const int name");
+	assert(namedecl<int&>("name") == "int& name");
 	assert(namedecl<int[3]>("name") == "int name[3]");
 	assert(namedecl<int(*)[3][4]>("name") == "int(* name)[3][4]");
 	assert(namedecl<int**volatile(*)[]>("name") == "int**volatile(* name)[]");

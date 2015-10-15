@@ -3,6 +3,7 @@
 
 #include <string>
 #include <type_traits>
+#include "../static-strings/static-strings.hpp"
 
 #ifdef __CYGWIN__
 #include <sstream>
@@ -31,6 +32,35 @@ inline split_string operator+(const std::string& s, const split_string& ss) {
 inline split_string operator+(const split_string& ss, const std::string& s) {
 	return { ss.begin, ss.end + s };
 }
+
+
+using empty_ss = static_string::static_string<char>;
+
+template <typename B, typename E>
+struct sss {
+	using begin = B;
+	using end = E;
+	inline static std::string string() {
+		return begin::string() + end::string();
+	}
+};
+
+using empty_sss = sss<empty_ss, empty_ss>;
+
+template <typename, typename>
+struct sssconcat_impl;
+
+template <char... chars, typename SSS>
+struct sssconcat_impl<static_string::static_string<char, chars...>, SSS> {
+	using _begin = static_string::concat<
+	                   static_string::static_string<char, chars...>,
+	                   typename SSS::begin
+	               >;
+	using type = sss<_begin, typename SSS::end>;
+};
+
+template <typename T1, typename T2>
+using sssconcat = typename sssconcat_impl<T1, T2>::type;
 
 
 template <typename T>
@@ -245,20 +275,46 @@ template <typename R, typename... A>
 struct impl<R(A..., ...)> : function_args_impl<R, A..., varargs> {};
 
 
+template <typename T>
+struct str_provider;
+
+template <typename T>
+struct impl_proxy {
+	template <typename>
+	struct Check;
+
+	// SFINAE!
+	template <typename I>
+	constexpr static std::string value(const std::string& arg, Check<typename I::template ssstring<>>*) {
+		using i_sss = typename I::template ssstring<>;
+		return i_sss::begin::string() + arg + i_sss::end::string();
+	}
+
+	template <typename I>
+	constexpr static std::string value(const std::string& arg, ...) {
+		split_string ss = I::value();
+		return ss.begin + arg + ss.end;
+	}
+
+	using _impl = impl<T>;
+	inline static std::string value(const std::string& arg = "") {
+		return value<_impl>(arg, nullptr);
+	}
+};
+
+
 } /* namespace __typedecl */
 } /* unnamed namespace */
 
 
 template <typename T>
 inline std::string typedecl() {
-	__typedecl::split_string ss = __typedecl::impl<T>::value();
-	return ss.begin + ss.end;
+	return __typedecl::impl_proxy<T>::value();
 }
 
 template <typename T>
 inline std::string namedecl(const std::string& name) {
-	__typedecl::split_string ss = __typedecl::impl<T>::value();
-	return ss.begin + " " + name + ss.end;
+	return __typedecl::impl_proxy<T>::value(' ' + name);
 }
 
 
@@ -266,7 +322,13 @@ inline std::string namedecl(const std::string& name) {
 	namespace { \
 	namespace __typedecl { \
 	template <> \
+	struct str_provider<T> { \
+		static constexpr const char* str() { return #T; } \
+	}; \
+	template <> \
 	struct impl<T> { \
+		using _token_ss = static_string::from_provider<str_provider<T>>; \
+		template <typename SuffixSSS = empty_sss> using ssstring = sssconcat<_token_ss, SuffixSSS>; \
 		inline static split_string value(const split_string& suffix = {}) { \
 			return #T + suffix; \
 		} \
