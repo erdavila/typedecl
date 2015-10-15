@@ -35,6 +35,7 @@ inline split_string operator+(const split_string& ss, const std::string& s) {
 
 
 using empty_ss = static_string::static_string<char>;
+using space_ss = static_string::static_string<char, ' '>;
 
 template <typename B, typename E>
 struct sss {
@@ -68,7 +69,36 @@ struct impl;
 
 
 template <typename T>
-struct prefix_cv_qual_if_basictype {
+struct is_basic_type {
+	// SFINAE!
+	template <typename I>
+	static constexpr bool test(typename I::template ssstring_with_cv_qual<empty_ss, empty_sss> *) {
+		return true;
+	}
+
+	template <typename I>
+	static constexpr bool test(...) {
+		return false;
+	}
+
+	enum { value = test<impl<T>>(nullptr) };
+};
+
+template <typename T, typename SuffixSSS, typename CVQualSS, bool = is_basic_type<T>::value>
+struct prefix_cv_qual_if_basictype;
+
+template <typename T, typename SuffixSSS, typename CVQualSS>
+struct prefix_cv_qual_if_basictype<T, SuffixSSS, CVQualSS, true> {
+	using ssstring = typename impl<T>::template ssstring_with_cv_qual<CVQualSS, SuffixSSS>;
+};
+
+template <typename T, typename SuffixSSS, typename CVQualSS>
+struct prefix_cv_qual_if_basictype<T, SuffixSSS, CVQualSS, false> {
+	using ssstring = typename impl<T>::template ssstring<sssconcat<CVQualSS, SuffixSSS>>;
+};
+
+template <typename T>
+struct _prefix_cv_qual_if_basictype {
 	/*
 	 * == SFINAE ==
 	 * If impl<T> has a static member function named "value_with_cv_qual", then
@@ -92,18 +122,42 @@ struct prefix_cv_qual_if_basictype {
 	}
 };
 
+template <typename T>
+struct has_ssstring {
+	template <typename TT>
+	constexpr static bool test(typename TT::template ssstring<>*) { return true; }
+
+	template <typename TT>
+	constexpr static bool test(...) { return false; }
+
+	enum { value = test<impl<T>>(nullptr) };
+};
+
+template <typename T, bool = has_ssstring<T>::value>
+struct const_impl;
 
 template <typename T>
-struct impl<const T> {
+struct const_impl<T, true> {
+	using _token_ss = static_string::static_string<char, 'c','o','n','s','t'>;
+
+	template <typename SuffixSSS = empty_sss>
+	using ssstring = typename prefix_cv_qual_if_basictype<T, SuffixSSS, _token_ss>::ssstring;
+};
+
+template <typename T>
+struct const_impl<T, false> {};
+
+template <typename T>
+struct impl<const T> : const_impl<T> {
 	inline static split_string value(const split_string& suffix = {}) {
-		return prefix_cv_qual_if_basictype<T>::value("const", suffix);
+		return _prefix_cv_qual_if_basictype<T>::value("const", suffix);
 	}
 };
 
 template <typename T>
 struct impl<volatile T> {
 	inline static split_string value(const split_string& suffix = {}) {
-		return prefix_cv_qual_if_basictype<T>::value("volatile", suffix);
+		return _prefix_cv_qual_if_basictype<T>::value("volatile", suffix);
 	}
 };
 
@@ -111,7 +165,7 @@ struct impl<volatile T> {
 template <typename T>
 struct impl<const volatile T> {
 	inline static split_string value(const split_string& suffix = {}) {
-		return prefix_cv_qual_if_basictype<T>::value("const volatile", suffix);
+		return _prefix_cv_qual_if_basictype<T>::value("const volatile", suffix);
 	}
 };
 
@@ -278,27 +332,23 @@ struct impl<R(A..., ...)> : function_args_impl<R, A..., varargs> {};
 template <typename T>
 struct str_provider;
 
-template <typename T>
-struct impl_proxy {
-	template <typename>
-	struct Check;
 
-	// SFINAE!
-	template <typename I>
-	constexpr static std::string value(const std::string& arg, Check<typename I::template ssstring<>>*) {
-		using i_sss = typename I::template ssstring<>;
+template <typename T, bool = has_ssstring<T>::value>
+struct impl_proxy;
+
+template <typename T>
+struct impl_proxy<T, true> {
+	inline static std::string value(const std::string& arg = "") {
+		using i_sss = typename impl<T>::template ssstring<>;
 		return i_sss::begin::string() + arg + i_sss::end::string();
 	}
+};
 
-	template <typename I>
-	constexpr static std::string value(const std::string& arg, ...) {
-		split_string ss = I::value();
-		return ss.begin + arg + ss.end;
-	}
-
-	using _impl = impl<T>;
+template <typename T>
+struct impl_proxy<T, false> {
 	inline static std::string value(const std::string& arg = "") {
-		return value<_impl>(arg, nullptr);
+		split_string ss = impl<T>::value();
+		return ss.begin + arg + ss.end;
 	}
 };
 
@@ -329,6 +379,11 @@ inline std::string namedecl(const std::string& name) {
 	struct impl<T> { \
 		using _token_ss = static_string::from_provider<str_provider<T>>; \
 		template <typename SuffixSSS = empty_sss> using ssstring = sssconcat<_token_ss, SuffixSSS>; \
+		template <typename CVQualSS, typename SuffixSSS> \
+		using ssstring_with_cv_qual = sssconcat< \
+		                                  static_string::concat<CVQualSS, space_ss, _token_ss>, \
+		                                  SuffixSSS \
+		                              >; \
 		inline static split_string value(const split_string& suffix = {}) { \
 			return #T + suffix; \
 		} \
