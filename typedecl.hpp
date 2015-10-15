@@ -154,8 +154,23 @@ struct impl<const T> : const_impl<T> {
 	}
 };
 
+
+template <typename T, bool = has_ssstring<T>::value>
+struct volatile_impl;
+
 template <typename T>
-struct impl<volatile T> {
+struct volatile_impl<T, true> {
+	using _token_ss = static_string::static_string<char, 'v','o','l','a','t','i','l','e'>;
+
+	template <typename SuffixSSS = empty_sss>
+	using ssstring = typename prefix_cv_qual_if_basictype<T, SuffixSSS, _token_ss>::ssstring;
+};
+
+template <typename T>
+struct volatile_impl<T, false> {};
+
+template <typename T>
+struct impl<volatile T> : volatile_impl<T> {
 	inline static split_string value(const split_string& suffix = {}) {
 		return _prefix_cv_qual_if_basictype<T>::value("volatile", suffix);
 	}
