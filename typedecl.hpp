@@ -48,20 +48,32 @@ struct sss {
 
 using empty_sss = sss<empty_ss, empty_ss>;
 
-template <typename, typename>
+template <typename, typename...>
 struct sssconcat_impl;
 
-template <char... chars, typename SSS>
-struct sssconcat_impl<static_string::static_string<char, chars...>, SSS> {
-	using _begin = static_string::concat<
-	                   static_string::static_string<char, chars...>,
-	                   typename SSS::begin
-	               >;
-	using type = sss<_begin, typename SSS::end>;
+// sss
+template <typename BeginSS, typename EndSS>
+struct sssconcat_impl<sss<BeginSS, EndSS>> {
+	using type = sss<BeginSS, EndSS>;
 };
 
-template <typename T1, typename T2>
-using sssconcat = typename sssconcat_impl<T1, T2>::type;
+// ss + sss + ...
+template <char... chars, typename BeginSS, typename EndSS, typename... TT>
+struct sssconcat_impl<
+			static_string::static_string<char, chars...>,
+			sss<BeginSS, EndSS>,
+			TT...
+	> {
+	using _begin_ss = static_string::concat<
+	                   static_string::static_string<char, chars...>,
+	                   BeginSS
+	               >;
+	using _left_sss = sss<_begin_ss, EndSS>;
+	using type = typename sssconcat_impl<_left_sss, TT...>::type;
+};
+
+template <typename T1, typename T2, typename... TT>
+using sssconcat = typename sssconcat_impl<T1, T2, TT...>::type;
 
 
 template <typename T>
@@ -185,38 +197,72 @@ template <typename T, bool = is_array_or_function<T>::value>
 struct parenthesize_if_array_or_function;
 
 template <typename T>
+struct parenthesize_if_array_or_function<T, true> {
+	template <typename ArgSSS>
+	using ssstring = typename impl<T>::template ssstring<
+			sssconcat<
+				static_string::static_string<char, '('>,
+				ArgSSS,
+				static_string::static_string<char, ')'>
+			>
+	>;
+};
+
+template <typename T>
 struct parenthesize_if_array_or_function<T, false> {
+	template <typename ArgSSS>
+	using ssstring = typename impl<T>::template ssstring<ArgSSS>;
+};
+
+template <typename T, bool = is_array_or_function<T>::value>
+struct _parenthesize_if_array_or_function;
+
+template <typename T>
+struct _parenthesize_if_array_or_function<T, false> {
 	inline static split_string value(const split_string& arg) {
 		return impl<T>::value(arg);
 	}
 };
 
 template <typename T>
-struct parenthesize_if_array_or_function<T, true> {
+struct _parenthesize_if_array_or_function<T, true> {
 	inline static split_string value(const split_string& arg) {
 		return impl<T>::value("(" + arg + ")");
 	}
 };
 
+template <typename T, bool = has_ssstring<T>::value>
+struct pointer_impl;
 
 template <typename T>
-struct impl<T*> {
+struct pointer_impl<T, true> {
+	using _token_ss = static_string::static_string<char, '*'>;
+
+	template <typename SuffixSSS = empty_sss>
+	using ssstring = typename parenthesize_if_array_or_function<T>::template ssstring<sssconcat<_token_ss, SuffixSSS>>;
+};
+
+template <typename T>
+struct pointer_impl<T, false> {};
+
+template <typename T>
+struct impl<T*> : pointer_impl<T> {
 	inline static split_string value(const split_string& suffix = {}) {
-		return parenthesize_if_array_or_function<T>::value("*" + suffix);
+		return _parenthesize_if_array_or_function<T>::value("*" + suffix);
 	}
 };
 
 template <typename T>
 struct impl<T&> {
 	inline static split_string value(const split_string& suffix = {}) {
-		return parenthesize_if_array_or_function<T>::value("&" + suffix);
+		return _parenthesize_if_array_or_function<T>::value("&" + suffix);
 	}
 };
 
 template <typename T>
 struct impl<T&&> {
 	inline static split_string value(const split_string& suffix = {}) {
-		return parenthesize_if_array_or_function<T>::value("&&" + suffix);
+		return _parenthesize_if_array_or_function<T>::value("&&" + suffix);
 	}
 };
 
