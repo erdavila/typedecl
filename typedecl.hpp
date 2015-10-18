@@ -10,71 +10,78 @@ namespace {
 namespace __typedecl {
 
 
-using empty_ss = static_string::static_string<char>;
-using space_ss = static_string::static_string<char, ' '>;
-using open_parens_ss = static_string::static_string<char, '('>;
-using close_parens_ss = static_string::static_string<char, ')'>;
+template <typename... T> using ssconcat         = static_string::concat<T...>;
+template <typename P>    using ss_from_provider = static_string::from_provider<P>;
+template <char... chars> using static_string    = static_string::static_string<char, chars...>;
 
-template <typename B, typename E>
-struct sss {
-	using begin = B;
-	using end = E;
+
+using empty_ss = static_string<>;
+using space_ss = static_string<' '>;
+using open_parens_ss = static_string<'('>;
+using close_parens_ss = static_string<')'>;
+
+
+template <typename BeginSS, typename EndSS>
+struct split_static_string {
+	using begin = BeginSS;
+	using end = EndSS;
 };
 
-using empty_sss = sss<empty_ss, empty_ss>;
+using empty_sss = split_static_string<empty_ss, empty_ss>;
+
 
 template <typename, typename...>
 struct sssconcat_impl;
 
-// sss
+// split_static_string
 template <typename BeginSS, typename EndSS>
-struct sssconcat_impl<sss<BeginSS, EndSS>> {
-	using type = sss<BeginSS, EndSS>;
+struct sssconcat_impl<split_static_string<BeginSS, EndSS>> {
+	using type = split_static_string<BeginSS, EndSS>;
 };
 
-// ss + sss + ...
+// static_string + split_static_string + ...
 template <char... chars, typename BeginSS, typename EndSS, typename... TT>
 struct sssconcat_impl<
-			static_string::static_string<char, chars...>,
-			sss<BeginSS, EndSS>,
+			static_string<chars...>,
+			split_static_string<BeginSS, EndSS>,
 			TT...
 	>
 {
-	using _begin_ss = static_string::concat<
-	                   static_string::static_string<char, chars...>,
+	using _begin_ss = ssconcat<
+	                   static_string<chars...>,
 	                   BeginSS
 	               >;
-	using _left_sss = sss<_begin_ss, EndSS>;
+	using _left_sss = split_static_string<_begin_ss, EndSS>;
 	using type = typename sssconcat_impl<_left_sss, TT...>::type;
 };
 
-// sss + ss + ...
+// split_static_string + static_string + ...
 template <typename BeginSS, typename EndSS, char... chars, typename... TT>
 struct sssconcat_impl<
-			sss<BeginSS, EndSS>,
-			static_string::static_string<char, chars...>,
+			split_static_string<BeginSS, EndSS>,
+			static_string<chars...>,
 			TT...
 	>
 {
-	using _end_ss = static_string::concat<
+	using _end_ss = ssconcat<
 	                   EndSS,
-	                   static_string::static_string<char, chars...>
+	                   static_string<chars...>
 	               >;
-	using _left_sss = sss<BeginSS, _end_ss>;
+	using _left_sss = split_static_string<BeginSS, _end_ss>;
 	using type = typename sssconcat_impl<_left_sss, TT...>::type;
 };
 
-// ss + ss + ? + ...
+// static_string + static_string + ? + ...
 template <char... chars1, char... chars2, typename T, typename... TT>
 struct sssconcat_impl<
-			static_string::static_string<char, chars1...>,
-			static_string::static_string<char, chars2...>,
+			static_string<chars1...>,
+			static_string<chars2...>,
 			T, TT...
 	>
 {
-	using _left_ss = static_string::concat<
-			static_string::static_string<char, chars1...>,
-			static_string::static_string<char, chars2...>
+	using _left_ss = ssconcat<
+			static_string<chars1...>,
+			static_string<chars2...>
 		>;
 	using type = typename sssconcat_impl<_left_ss, T, TT...>::type;
 };
@@ -129,12 +136,12 @@ struct cvqualified_impl {
 	using ssstring = typename prefix_cv_qual_if_basictype<T, SuffixSSS, CVQualSS>::ssstring;
 };
 
-using const_ss = static_string::static_string<char, 'c','o','n','s','t'>;
+using const_ss = static_string<'c','o','n','s','t'>;
 
 template <typename T>
 struct impl<const T> : cvqualified_impl<T, const_ss> {};
 
-using volatile_ss = static_string::static_string<char, 'v','o','l','a','t','i','l','e'>;
+using volatile_ss = static_string<'v','o','l','a','t','i','l','e'>;
 
 template <typename T>
 struct impl<volatile T> : cvqualified_impl<T, volatile_ss> {};
@@ -142,7 +149,7 @@ struct impl<volatile T> : cvqualified_impl<T, volatile_ss> {};
 // Required to disambiguate between <const T> and <volatile T>
 template <typename T>
 struct impl<const volatile T>
-	: cvqualified_impl<T, static_string::concat<const_ss, space_ss, volatile_ss>>
+	: cvqualified_impl<T, ssconcat<const_ss, space_ss, volatile_ss>>
 {};
 
 
@@ -181,24 +188,24 @@ struct address_access_impl {
 
 template <typename T>
 struct impl<T*>
-	: address_access_impl<T, static_string::static_string<char, '*'>>
+	: address_access_impl<T, static_string<'*'>>
 {};
 
 template <typename T>
 struct impl<T&>
-	: address_access_impl<T, static_string::static_string<char, '&'>>
+	: address_access_impl<T, static_string<'&'>>
 {};
 
 template <typename T>
 struct impl<T&&>
-	: address_access_impl<T, static_string::static_string<char, '&','&'>>
+	: address_access_impl<T, static_string<'&','&'>>
 {};
 
 
 template <typename T>
 struct array_impl {
 	template <typename PrefixSSS = empty_sss>
-	using ssstring = typename impl<T>::template ssstring<sssconcat<PrefixSSS, static_string::static_string<char, '[',']'>>>;
+	using ssstring = typename impl<T>::template ssstring<sssconcat<PrefixSSS, static_string<'[',']'>>>;
 };
 
 template <typename T>
@@ -222,12 +229,12 @@ struct size_to_sstring;
 
 template <size_t N>
 struct size_to_sstring<N, true> {
-	using sstring = static_string::static_string<char, '0' + N>;
+	using sstring = static_string<'0' + N>;
 };
 
 template <size_t N>
 struct size_to_sstring<N, false> {
-	using sstring = static_string::concat<
+	using sstring = ssconcat<
 			typename size_to_sstring<N / 10>::sstring,
 			typename size_to_sstring<N % 10>::sstring
 	>;
@@ -239,9 +246,9 @@ struct sized_array_impl {
 	using ssstring = typename impl<T>::template ssstring<
 			sssconcat<
 				PrefixSSS,
-				static_string::static_string<char, '['>,
+				static_string<'['>,
 				typename size_to_sstring<N>::sstring,
-				static_string::static_string<char, ']'>
+				static_string<']'>
 			>
 	>;
 };
@@ -274,20 +281,20 @@ struct varargs;
 
 template <>
 struct type_list_impl<varargs> {
-	using sstring = static_string::static_string<char, '.','.','.'>;
+	using sstring = static_string<'.','.','.'>;
 };
 
 template <typename T>
 struct type_list_impl<T> {
 	using _t_sss = typename impl<T>::template ssstring<>;
-	using sstring = static_string::concat<typename _t_sss::begin, typename _t_sss::end>;
+	using sstring = ssconcat<typename _t_sss::begin, typename _t_sss::end>;
 };
 
 template <typename T1, typename T2, typename... U>
 struct type_list_impl<T1, T2, U...> {
-	using sstring = static_string::concat<
+	using sstring = ssconcat<
 				typename type_list_impl<T1>::sstring,
-				static_string::static_string<char, ',',' '>,
+				static_string<',',' '>,
 				typename type_list_impl<T2, U...>::sstring
 			>;
 };
@@ -378,11 +385,11 @@ inline std::string namedecl(const std::string& name) {
 	}; \
 	template <> \
 	struct impl<T> { \
-		using _token_ss = static_string::from_provider<str_provider<T>>; \
+		using _token_ss = ss_from_provider<str_provider<T>>; \
 		template <typename SuffixSSS = empty_sss> using ssstring = sssconcat<_token_ss, SuffixSSS>; \
 		template <typename CVQualSS, typename SuffixSSS> \
 		using ssstring_with_cv_qual = sssconcat< \
-		                                  static_string::concat<CVQualSS, space_ss, _token_ss>, \
+		                                  ssconcat<CVQualSS, space_ss, _token_ss>, \
 		                                  SuffixSSS \
 		                              >; \
 	}; \
