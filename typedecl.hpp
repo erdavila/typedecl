@@ -36,6 +36,8 @@ inline split_string operator+(const split_string& ss, const std::string& s) {
 
 using empty_ss = static_string::static_string<char>;
 using space_ss = static_string::static_string<char, ' '>;
+using open_parens_ss = static_string::static_string<char, '('>;
+using close_parens_ss = static_string::static_string<char, ')'>;
 
 template <typename B, typename E>
 struct sss {
@@ -63,7 +65,8 @@ struct sssconcat_impl<
 			static_string::static_string<char, chars...>,
 			sss<BeginSS, EndSS>,
 			TT...
-	> {
+	>
+{
 	using _begin_ss = static_string::concat<
 	                   static_string::static_string<char, chars...>,
 	                   BeginSS
@@ -78,13 +81,29 @@ struct sssconcat_impl<
 			sss<BeginSS, EndSS>,
 			static_string::static_string<char, chars...>,
 			TT...
-	> {
+	>
+{
 	using _end_ss = static_string::concat<
 	                   EndSS,
 	                   static_string::static_string<char, chars...>
 	               >;
 	using _left_sss = sss<BeginSS, _end_ss>;
 	using type = typename sssconcat_impl<_left_sss, TT...>::type;
+};
+
+// ss + ss + ? + ...
+template <char... chars1, char... chars2, typename T, typename... TT>
+struct sssconcat_impl<
+			static_string::static_string<char, chars1...>,
+			static_string::static_string<char, chars2...>,
+			T, TT...
+	>
+{
+	using _left_ss = static_string::concat<
+			static_string::static_string<char, chars1...>,
+			static_string::static_string<char, chars2...>
+		>;
+	using type = typename sssconcat_impl<_left_ss, T, TT...>::type;
 };
 
 template <typename T1, typename T2, typename... TT>
@@ -216,9 +235,9 @@ struct parenthesize_if_array_or_function<T, true> {
 	template <typename ArgSSS>
 	using ssstring = typename impl<T>::template ssstring<
 			sssconcat<
-				static_string::static_string<char, '('>,
+				open_parens_ss,
 				ArgSSS,
-				static_string::static_string<char, ')'>
+				close_parens_ss
 			>
 	>;
 };
@@ -378,6 +397,8 @@ struct type_list_impl;
 
 template <>
 struct type_list_impl<> {
+	using sstring = empty_ss;
+
 	inline static std::string value() {
 		return "";
 	}
@@ -387,6 +408,8 @@ struct varargs;
 
 template <>
 struct type_list_impl<varargs> {
+	using sstring = static_string::static_string<char, '.','.','.'>;
+
 	inline static std::string value() {
 		return "...";
 	}
@@ -394,6 +417,9 @@ struct type_list_impl<varargs> {
 
 template <typename T>
 struct type_list_impl<T> {
+	using _t_sss = typename impl<T>::template ssstring<>;
+	using sstring = static_string::concat<typename _t_sss::begin, typename _t_sss::end>;
+
 	inline static std::string value() {
 		return static_cast<std::string>(impl<T>::value());
 	}
@@ -401,24 +427,58 @@ struct type_list_impl<T> {
 
 template <typename T1, typename T2, typename... U>
 struct type_list_impl<T1, T2, U...> {
+	using sstring = static_string::concat<
+				typename type_list_impl<T1>::sstring,
+				static_string::static_string<char, ',',' '>,
+				typename type_list_impl<T2, U...>::sstring
+			>;
+
 	inline static std::string value() {
 		return type_list_impl<T1>::value() + ", " + type_list_impl<T2, U...>::value();
 	}
 };
 
 
-template <bool RIsPtrOrRef, typename R, typename... A>
+template <typename F, bool RIsPtrOrRef, bool RHasSSS>
 struct function_impl;
 
 template <typename R, typename... A>
-struct function_impl<false, R, A...> {
+struct function_impl<R(A...), false, true> {
+	using _r_sss = typename impl<R>::template ssstring<>;
+
+	template <typename InfixSSS = empty_sss>
+	using ssstring = sssconcat<
+				typename _r_sss::begin,
+				typename _r_sss::end,
+				InfixSSS,
+				open_parens_ss,
+				typename type_list_impl<A...>::sstring,
+				close_parens_ss
+			>;
+};
+
+template <typename R, typename... A>
+struct function_impl<R(A...), false, false> {
 	inline static split_string value(const split_string& infix = {}) {
 		return static_cast<std::string>(impl<R>::value()) + infix + "(" + type_list_impl<A...>::value() + ")";
 	}
 };
 
 template <typename R, typename... A>
-struct function_impl<true, R, A...> {
+struct function_impl<R(A...), true, true> {
+	template <typename PrefixSSS = empty_sss>
+	using ssstring = typename impl<R>::template ssstring<
+				sssconcat<
+					PrefixSSS,
+					open_parens_ss,
+					typename type_list_impl<A...>::sstring,
+					close_parens_ss
+				>
+			>;
+};
+
+template <typename R, typename... A>
+struct function_impl<R(A...), true, false> {
 	inline static split_string value(const split_string& prefix = {}) {
 		return impl<R>::value(prefix + "(" + type_list_impl<A...>::value() + ")");
 	}
@@ -430,14 +490,23 @@ struct is_pointer_or_reference : std::integral_constant<
 	std::is_pointer<T>::value || std::is_reference<T>::value
 > {};
 
-template <typename R, typename... A>
-struct function_args_impl : function_impl<is_pointer_or_reference<typename std::remove_cv<R>::type>::value, R, A...> {};
+template <typename F>
+struct function_args_impl;
 
 template <typename R, typename... A>
-struct impl<R(A...)>      : function_args_impl<R, A...> {};
+struct function_args_impl<R(A...)>
+	: function_impl<
+			R(A...),
+			is_pointer_or_reference<typename std::remove_cv<R>::type>::value,
+			has_ssstring<R>::value
+		>
+{};
 
 template <typename R, typename... A>
-struct impl<R(A..., ...)> : function_args_impl<R, A..., varargs> {};
+struct impl<R(A...)>      : function_args_impl<R(A...)> {};
+
+template <typename R, typename... A>
+struct impl<R(A..., ...)> : function_args_impl<R(A..., varargs)> {};
 
 
 template <typename T>
