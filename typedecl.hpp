@@ -10,6 +10,12 @@ namespace {
 namespace __typedecl {
 
 
+template <typename T, template <typename> class C1, template <typename> class C2>
+struct or_conds
+	: std::integral_constant<bool, C1<T>::value || C2<T>::value>
+{};
+
+
 template <typename... T> using ssconcat         = static_string::concat<T...>;
 template <typename P>    using ss_from_provider = static_string::from_provider<P>;
 template <char... chars> using static_string    = static_string::static_string<char, chars...>;
@@ -150,10 +156,8 @@ struct impl<const volatile T>
 
 
 template <typename T>
-struct is_array_or_function : std::integral_constant<
-	bool,
-	std::is_array<T>::value || std::is_function<T>::value
-> {};
+struct is_array_or_function : or_conds<T, std::is_array, std::is_function>
+{};
 
 template <typename T, typename TokenSS, bool = is_array_or_function<T>::value>
 struct address_access_impl;
@@ -296,10 +300,8 @@ struct type_list_impl<T1, T2, U...> {
 
 
 template <typename T>
-struct is_pointer_or_reference : std::integral_constant<
-	bool,
-	std::is_pointer<T>::value || std::is_reference<T>::value
-> {};
+struct is_pointer_or_reference : or_conds<T, std::is_pointer, std::is_reference>
+{};
 
 template <typename T>
 struct result_is_pointer_or_reference;
