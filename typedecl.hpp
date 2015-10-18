@@ -124,6 +124,7 @@ struct _prefix_cv_qual_if_basictype {
 
 template <typename T>
 struct has_ssstring {
+	// SFINAE!
 	template <typename TT>
 	constexpr static bool test(typename TT::template ssstring<>*) { return true; }
 
@@ -133,44 +134,27 @@ struct has_ssstring {
 	enum { value = test<impl<T>>(nullptr) };
 };
 
-template <typename T, bool = has_ssstring<T>::value>
-struct const_impl;
+template <typename T, typename CVQualSS, bool = has_ssstring<T>::value>
+struct cvqualified_impl;
 
-template <typename T>
-struct const_impl<T, true> {
-	using _token_ss = static_string::static_string<char, 'c','o','n','s','t'>;
-
+template <typename T, typename CVQualSS>
+struct cvqualified_impl<T, CVQualSS, true> {
 	template <typename SuffixSSS = empty_sss>
-	using ssstring = typename prefix_cv_qual_if_basictype<T, SuffixSSS, _token_ss>::ssstring;
+	using ssstring = typename prefix_cv_qual_if_basictype<T, SuffixSSS, CVQualSS>::ssstring;
 };
 
-template <typename T>
-struct const_impl<T, false> {};
+template <typename T, typename CVQualSS>
+struct cvqualified_impl<T, CVQualSS, false> {};
 
 template <typename T>
-struct impl<const T> : const_impl<T> {
+struct impl<const T> : cvqualified_impl<T, static_string::static_string<char, 'c','o','n','s','t'>> {
 	inline static split_string value(const split_string& suffix = {}) {
 		return _prefix_cv_qual_if_basictype<T>::value("const", suffix);
 	}
 };
 
-
-template <typename T, bool = has_ssstring<T>::value>
-struct volatile_impl;
-
 template <typename T>
-struct volatile_impl<T, true> {
-	using _token_ss = static_string::static_string<char, 'v','o','l','a','t','i','l','e'>;
-
-	template <typename SuffixSSS = empty_sss>
-	using ssstring = typename prefix_cv_qual_if_basictype<T, SuffixSSS, _token_ss>::ssstring;
-};
-
-template <typename T>
-struct volatile_impl<T, false> {};
-
-template <typename T>
-struct impl<volatile T> : volatile_impl<T> {
+struct impl<volatile T> : cvqualified_impl<T, static_string::static_string<char, 'v','o','l','a','t','i','l','e'>> {
 	inline static split_string value(const split_string& suffix = {}) {
 		return _prefix_cv_qual_if_basictype<T>::value("volatile", suffix);
 	}
