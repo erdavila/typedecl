@@ -117,23 +117,19 @@ struct is_basic_type {
 	enum { value = test<impl<T>>(nullptr) };
 };
 
-template <typename T, typename SuffixSSS, typename CVQualSS, bool = is_basic_type<T>::value>
-struct prefix_cv_qual_if_basictype;
+template <typename T, typename CVQualSS, bool = is_basic_type<T>::value>
+struct cvqualified_impl;
 
-template <typename T, typename SuffixSSS, typename CVQualSS>
-struct prefix_cv_qual_if_basictype<T, SuffixSSS, CVQualSS, true> {
+template <typename T, typename CVQualSS>
+struct cvqualified_impl<T, CVQualSS, true> {
+	template <typename SuffixSSS = empty_sss>
 	using ssstring = typename impl<T>::template ssstring_with_cv_qual<CVQualSS, SuffixSSS>;
 };
 
-template <typename T, typename SuffixSSS, typename CVQualSS>
-struct prefix_cv_qual_if_basictype<T, SuffixSSS, CVQualSS, false> {
-	using ssstring = typename impl<T>::template ssstring<sssconcat<CVQualSS, SuffixSSS>>;
-};
-
 template <typename T, typename CVQualSS>
-struct cvqualified_impl {
+struct cvqualified_impl<T, CVQualSS, false> {
 	template <typename SuffixSSS = empty_sss>
-	using ssstring = typename prefix_cv_qual_if_basictype<T, SuffixSSS, CVQualSS>::ssstring;
+	using ssstring = typename impl<T>::template ssstring<sssconcat<CVQualSS, SuffixSSS>>;
 };
 
 using const_ss = static_string<'c','o','n','s','t'>;
@@ -159,31 +155,30 @@ struct is_array_or_function : std::integral_constant<
 	std::is_array<T>::value || std::is_function<T>::value
 > {};
 
-template <typename T, bool = is_array_or_function<T>::value>
-struct parenthesize_if_array_or_function;
+template <typename T, typename TokenSS, bool = is_array_or_function<T>::value>
+struct address_access_impl;
 
-template <typename T>
-struct parenthesize_if_array_or_function<T, true> {
-	template <typename ArgSSS>
+template <typename T, typename TokenSS>
+struct address_access_impl<T, TokenSS, true> {
+	template <typename SuffixSSS = empty_sss>
 	using ssstring = typename impl<T>::template ssstring<
 			sssconcat<
 				open_parens_ss,
-				ArgSSS,
+				TokenSS,
+				SuffixSSS,
 				close_parens_ss
 			>
 	>;
 };
 
-template <typename T>
-struct parenthesize_if_array_or_function<T, false> {
-	template <typename ArgSSS>
-	using ssstring = typename impl<T>::template ssstring<ArgSSS>;
-};
-
 template <typename T, typename TokenSS>
-struct address_access_impl {
+struct address_access_impl<T, TokenSS, false> {
 	template <typename SuffixSSS = empty_sss>
-	using ssstring = typename parenthesize_if_array_or_function<T>::template ssstring<sssconcat<TokenSS, SuffixSSS>>;
+	using ssstring = typename impl<T>::template ssstring<
+			sssconcat<
+				TokenSS, SuffixSSS
+			>
+	>;
 };
 
 template <typename T>
@@ -300,7 +295,21 @@ struct type_list_impl<T1, T2, U...> {
 };
 
 
-template <typename F, bool RIsPtrOrRef>
+template <typename T>
+struct is_pointer_or_reference : std::integral_constant<
+	bool,
+	std::is_pointer<T>::value || std::is_reference<T>::value
+> {};
+
+template <typename T>
+struct result_is_pointer_or_reference;
+
+template <typename R, typename... A>
+struct result_is_pointer_or_reference<R(A...)>
+	: is_pointer_or_reference<typename std::remove_cv<R>::type>
+{};
+
+template <typename F, bool = result_is_pointer_or_reference<F>::value>
 struct function_impl;
 
 template <typename R, typename... A>
@@ -331,32 +340,29 @@ struct function_impl<R(A...), true> {
 			>;
 };
 
-template <typename T>
-struct is_pointer_or_reference : std::integral_constant<
-	bool,
-	std::is_pointer<T>::value || std::is_reference<T>::value
-> {};
-
-template <typename F>
-struct function_args_impl;
+template <typename R, typename... A>
+struct impl<R(A...)>      : function_impl<R(A...)> {};
 
 template <typename R, typename... A>
-struct function_args_impl<R(A...)>
-	: function_impl<
-			R(A...),
-			is_pointer_or_reference<typename std::remove_cv<R>::type>::value
-		>
-{};
-
-template <typename R, typename... A>
-struct impl<R(A...)>      : function_args_impl<R(A...)> {};
-
-template <typename R, typename... A>
-struct impl<R(A..., ...)> : function_args_impl<R(A..., varargs)> {};
+struct impl<R(A..., ...)> : function_impl<R(A..., varargs)> {};
 
 
 template <typename T>
 struct str_provider;
+
+template <typename T>
+struct basic_type_impl {
+	using _token_ss = ss_from_provider<str_provider<T>>;
+
+	template <typename SuffixSSS = empty_sss>
+	using ssstring = sssconcat<_token_ss, SuffixSSS>;
+
+	template <typename CVQualSS, typename SuffixSSS>
+	using ssstring_with_cv_qual = sssconcat<
+			ssconcat<CVQualSS, space_ss, _token_ss>,
+			SuffixSSS
+		>;
+};
 
 
 } /* namespace __typedecl */
@@ -379,20 +385,8 @@ inline std::string namedecl(const std::string& name) {
 #define DEFINE_TYPEDECL(T) \
 	namespace { \
 	namespace __typedecl { \
-	template <> \
-	struct str_provider<T> { \
-		static constexpr const char* str() { return #T; } \
-	}; \
-	template <> \
-	struct impl<T> { \
-		using _token_ss = ss_from_provider<str_provider<T>>; \
-		template <typename SuffixSSS = empty_sss> using ssstring = sssconcat<_token_ss, SuffixSSS>; \
-		template <typename CVQualSS, typename SuffixSSS> \
-		using ssstring_with_cv_qual = sssconcat< \
-		                                  ssconcat<CVQualSS, space_ss, _token_ss>, \
-		                                  SuffixSSS \
-		                              >; \
-	}; \
+	template <> struct str_provider<T> { static constexpr const char* str() { return #T; } }; \
+	template <> struct impl<T> : basic_type_impl<T> {}; \
 	} /* namespace __typedecl */ \
 	} /* unnamed namespace */
 
