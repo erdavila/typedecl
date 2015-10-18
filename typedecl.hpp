@@ -72,6 +72,21 @@ struct sssconcat_impl<
 	using type = typename sssconcat_impl<_left_sss, TT...>::type;
 };
 
+// sss + ss + ...
+template <typename BeginSS, typename EndSS, char... chars, typename... TT>
+struct sssconcat_impl<
+			sss<BeginSS, EndSS>,
+			static_string::static_string<char, chars...>,
+			TT...
+	> {
+	using _end_ss = static_string::concat<
+	                   EndSS,
+	                   static_string::static_string<char, chars...>
+	               >;
+	using _left_sss = sss<BeginSS, _end_ss>;
+	using type = typename sssconcat_impl<_left_sss, TT...>::type;
+};
+
 template <typename T1, typename T2, typename... TT>
 using sssconcat = typename sssconcat_impl<T1, T2, TT...>::type;
 
@@ -271,8 +286,17 @@ struct impl<T&&>
 };
 
 
+template <typename T, bool = has_ssstring<T>::value>
+struct array_impl;
+
 template <typename T>
-struct array_impl {
+struct array_impl<T, true> : array_impl<T, false> {
+	template <typename PrefixSSS = empty_sss>
+	using ssstring = typename impl<T>::template ssstring<sssconcat<PrefixSSS, static_string::static_string<char, '[',']'>>>;
+};
+
+template <typename T>
+struct array_impl<T, false> {
 	inline static split_string value(const split_string& prefix = {}) {
 		return impl<T>::value(prefix + "[]");
 	}
