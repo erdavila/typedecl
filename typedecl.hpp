@@ -318,8 +318,40 @@ template <typename T>
 struct impl<const volatile T[]> : array_impl<const volatile T> {};
 
 
+template <size_t N, bool = (N < 10)>
+struct size_to_sstring;
+
+template <size_t N>
+struct size_to_sstring<N, true> {
+	using sstring = static_string::static_string<char, '0' + N>;
+};
+
+template <size_t N>
+struct size_to_sstring<N, false> {
+	using sstring = static_string::concat<
+			typename size_to_sstring<N / 10>::sstring,
+			typename size_to_sstring<N % 10>::sstring
+	>;
+};
+
+template <typename T, size_t N, bool = has_ssstring<T>::value>
+struct sized_array_impl;
+
 template <typename T, size_t N>
-struct sized_array_impl {
+struct sized_array_impl<T, N, true> : sized_array_impl<T, N, false> {
+	template <typename PrefixSSS = empty_sss>
+	using ssstring = typename impl<T>::template ssstring<
+			sssconcat<
+				PrefixSSS,
+				static_string::static_string<char, '['>,
+				typename size_to_sstring<N>::sstring,
+				static_string::static_string<char, ']'>
+			>
+	>;
+};
+
+template <typename T, size_t N>
+struct sized_array_impl<T, N, false> {
 	inline static split_string value(const split_string& prefix = {}) {
 		return impl<T>::value(prefix + ("[" + std::to_string(N) + "]"));
 	}
