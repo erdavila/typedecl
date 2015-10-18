@@ -231,43 +231,31 @@ struct _parenthesize_if_array_or_function<T, true> {
 	}
 };
 
-template <typename T, bool = has_ssstring<T>::value>
-struct pointer_impl;
+template <typename T, typename TokenSS, bool = has_ssstring<T>::value>
+struct address_access_impl;
 
-template <typename T>
-struct pointer_impl<T, true> {
-	using _token_ss = static_string::static_string<char, '*'>;
-
+template <typename T, typename TokenSS>
+struct address_access_impl<T, TokenSS, true> {
 	template <typename SuffixSSS = empty_sss>
-	using ssstring = typename parenthesize_if_array_or_function<T>::template ssstring<sssconcat<_token_ss, SuffixSSS>>;
+	using ssstring = typename parenthesize_if_array_or_function<T>::template ssstring<sssconcat<TokenSS, SuffixSSS>>;
 };
 
-template <typename T>
-struct pointer_impl<T, false> {};
+template <typename T, typename TokenSS>
+struct address_access_impl<T, TokenSS, false> {};
 
 template <typename T>
-struct impl<T*> : pointer_impl<T> {
+struct impl<T*>
+	: address_access_impl<T, static_string::static_string<char, '*'>>
+{
 	inline static split_string value(const split_string& suffix = {}) {
 		return _parenthesize_if_array_or_function<T>::value("*" + suffix);
 	}
 };
 
-template <typename T, bool = has_ssstring<T>::value>
-struct lvalue_ref_impl;
-
 template <typename T>
-struct lvalue_ref_impl<T, true> {
-	using _token_ss = static_string::static_string<char, '&'>;
-
-	template <typename SuffixSSS = empty_sss>
-	using ssstring = typename parenthesize_if_array_or_function<T>::template ssstring<sssconcat<_token_ss, SuffixSSS>>;
-};
-
-template <typename T>
-struct lvalue_ref_impl<T, false> {};
-
-template <typename T>
-struct impl<T&> : lvalue_ref_impl<T> {
+struct impl<T&>
+	: address_access_impl<T, static_string::static_string<char, '&'>>
+{
 	inline static split_string value(const split_string& suffix = {}) {
 		return _parenthesize_if_array_or_function<T>::value("&" + suffix);
 	}
