@@ -581,11 +581,9 @@ class Generator:
 		declaration = normalized.declaration()
 		printerr('%d %r: %s ## %s' % (type_number, type, type.description(), declaration))
 
-		self.f.print('{')
+		self.f.print('{\t// Type %d' % type_number)
 		self.f.ident()
-
-		self.f.print('// Type %d: %s' % (type_number, type.description()))
-		self.f.print('// Constructed: %r' % type)
+		self.f.print('// Constructed: %r - %s' % (type, type.description()))
 		self.f.print('// Normalized:  %r - %s' % (normalized, normalized.description()))
 
 		definition_line = 'using %s = %s;' % (type.alias, type.definition)
