@@ -107,6 +107,13 @@ class Operation(Type):
 	def array_operations(self):
 		return self.operand.array_operations
 
+	def __eq__(self, other):
+		return self.__class__ is other.__class__ and \
+		       self.operand == other.operand
+
+	def __hash__(self):
+		return hash(self.__class__) ^ hash(self.operand)
+
 	def __repr__(self):
 		return '%s(%r)' % (self.__class__.__name__, self.operand)
 
@@ -527,6 +534,8 @@ class FileWriter:
 		self.print('#include <type_traits>')
 		self.print('#include "typedecl.hpp"')
 		self.print('')
+		self.print('template<typename>void avoid_unused_type_warning(){}')
+		self.print('')
 		self.print('void testTypeDecl() {')
 		self.ident()
 		return self
@@ -556,6 +565,8 @@ class Generator:
 	class OperationDisallowed(GenerationSkipped): pass
 
 	total_types = 0
+	types_skipped = 0
+	normalizations = {}
 
 	def __init__(self, file):
 		self.f = file;
@@ -564,21 +575,41 @@ class Generator:
 		if Generator.total_types >= MAX_TYPES:
 			return
 		Generator.total_types += 1
+		type_number = Generator.total_types
 
-		declaration = type.normalized().declaration()
-		printerr('%d %r: %s ## %s' % (Generator.total_types, type, type.description(), declaration))
+		normalized = type.normalized()
+		declaration = normalized.declaration()
+		printerr('%d %r: %s ## %s' % (type_number, type, type.description(), declaration))
 
 		self.f.print('{')
 		self.f.ident()
 
-		self.f.print('// %d: %r' % (Generator.total_types, type))
-		self.f.print('// %s' % type.description())
+		self.f.print('// Type %d: %s' % (type_number, type.description()))
+		self.f.print('// Constructed: %r' % type)
+		self.f.print('// Normalized:  %r - %s' % (normalized, normalized.description()))
 
-		self.f.print('using %s = %s;' % (type.alias, type.definition))
-		self.f.print('assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
-		self.f.print('assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
+		definition_line = 'using %s = %s;' % (type.alias, type.definition)
+
+		skipped = False
+		if normalized in self.normalizations:
+			same_types = self.normalizations[normalized]
+			same_types.append(type_number)
+
+			self.f.print('// Same normalized form as type %d' % same_types[0])
+
+			skipped = True
+			Generator.types_skipped += 1
+		else:
+			self.normalizations[normalized] = [type_number]
+
+			self.f.print(definition_line)
+			self.f.print('assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
+			self.f.print('assert(typedecl<%s>() == "%s");' % (type.alias, declaration))
 
 		if type.level < MAX_LEVELS:
+			if skipped:
+				self.f.print(definition_line)
+				self.f.print('avoid_unused_type_warning<%s>();' % type.alias)
 			for operation in ALL_OPERATIONS:
 				self.generate_with(operation, operand=type)
 
@@ -606,7 +637,9 @@ def main():
 
 	printerr()
 	printerr('Levels:', MAX_LEVELS)
-	printerr('Total types:', Generator.total_types)
+	printerr('Total types: %d (%d tested + %d skipped)' % (Generator.total_types,
+	                                                       Generator.total_types -Generator.types_skipped,
+	                                                       Generator.types_skipped))
 
 
 def debug():
