@@ -6,6 +6,9 @@ MAX_LEVELS = 5
 MAX_TYPES = 6800
 MAX_TESTED_TYPES = 3900
 
+SKIP_NULL_CONSTRUCTIONS = False
+ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS = False
+
 
 def printerr(*args, **kwargs):
 	print(*args, file=sys.stderr, **kwargs)
@@ -150,6 +153,11 @@ class CVQualified(Modifier):
 			  (cls.qualifications).intersection(operand.collected_qualifications()) != set():
 			# cvQualified1(cvQualified2(x))  &&  cvQualified1 and cvQualified2 have qualifications in common
 			raise Generator.OperationDisallowed('cv-qualification in common')
+
+		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, Function):
+			# <cv-qualified>(function(x))
+			raise Generator.GenerationPruned('Function cv-qualifier is ignored')
+
 		super(CVQualified, cls).accept_operand(operand)
 
 	@property
@@ -401,6 +409,11 @@ class FunctionArg(Function):
 				raise Generator.OperationDisallowed('Function parameter cannot be pointer to unsized array')
 			unqualified_operand = unqualified_pointer_operand
 
+		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, CVQualified) \
+				and not isinstance(unqualified_operand, Array):
+			# functionArg(<cv-qualified>(x)) -> functionArg(x)
+			raise Generator.GenerationPruned('Argument cv-qualifier is ignored')
+
 		super().accept_operand(operand)
 
 	def normalized(self):
@@ -522,6 +535,38 @@ ALL_OPERATIONS = [
 	#FunctionVA2Arg1,
 	#FunctionVA2Arg2,
 ]
+
+if ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS:
+	def remove_non_essential_operations(operations):
+		operations_to_remove = [
+			Volatile,         # Const           and Volatile        have the same relationship with other operations and with one another
+			RValueReference,  # LValueReference and RValueReference have the same relationship with other operations and with one another
+		]
+
+		functions_ret = []
+		functions_arg = []
+		functions_va_ret = []
+		functions_va_arg = []
+		for op in operations:
+			if issubclass(op, FunctionRet):
+				if issubclass(op, FunctionVA):
+					functions_va_ret.append(op)
+				else:
+					functions_ret.append(op)
+			elif issubclass(op, FunctionArg):
+				if issubclass(op, FunctionVA):
+					functions_va_arg.append(op)
+				else:
+					functions_arg.append(op)
+
+		for group in (functions_ret, functions_arg, functions_va_ret, functions_va_arg):
+			# Removes all operations except one from each group
+			operations_to_remove += group[:-1]
+
+		operations[:] = filter(lambda op: op not in operations_to_remove, operations)
+
+	remove_non_essential_operations(ALL_OPERATIONS)
+	del remove_non_essential_operations
 
 
 class FileWriter:
