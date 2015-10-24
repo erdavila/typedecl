@@ -3,7 +3,8 @@ import sys
 from itertools import repeat
 
 MAX_LEVELS = 5
-MAX_TYPES = 7000
+MAX_TYPES = 6800
+MAX_TESTED_TYPES = 3900
 
 
 def printerr(*args, **kwargs):
@@ -565,21 +566,24 @@ class Generator:
 	class OperationDisallowed(GenerationSkipped): pass
 
 	total_types = 0
-	types_skipped = 0
+	same_cases = 0
 	normalizations = {}
+
+	@classmethod
+	def tested_types(cls):
+		return cls.total_types - cls.same_cases
 
 	def __init__(self, file):
 		self.f = file;
 
 	def generate(self, type):
-		if Generator.total_types >= MAX_TYPES:
+		if Generator.total_types >= MAX_TYPES or \
+		   Generator.tested_types() >= MAX_TESTED_TYPES:
 			return
 		Generator.total_types += 1
 		type_number = Generator.total_types
 
 		normalized = type.normalized()
-		declaration = normalized.declaration()
-		printerr('%d %r: %s ## %s' % (type_number, type, type.description(), declaration))
 
 		self.f.print('{\t// Type %d' % type_number)
 		self.f.ident()
@@ -596,9 +600,10 @@ class Generator:
 			self.f.print('// Same normalized form as type %d' % same_types[0])
 
 			skipped = True
-			Generator.types_skipped += 1
+			Generator.same_cases += 1
 		else:
 			self.normalizations[normalized] = [type_number]
+			declaration = normalized.declaration()
 
 			self.f.print(definition_line)
 			self.f.print('assert((std::is_same<%s, %s>::value));' % (type.alias, declaration))
@@ -635,9 +640,9 @@ def main():
 
 	printerr()
 	printerr('Levels:', MAX_LEVELS)
-	printerr('Total types: %d (%d tested + %d skipped)' % (Generator.total_types,
-	                                                       Generator.total_types -Generator.types_skipped,
-	                                                       Generator.types_skipped))
+	printerr('Total types: %d (%d tested + %d same cases)' % (Generator.total_types,
+	                                                          Generator.tested_types(),
+	                                                          Generator.same_cases))
 
 
 def debug():
