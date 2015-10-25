@@ -16,15 +16,15 @@ struct or_conds
 {};
 
 
-template <typename... T> using ssconcat         = static_string::concat<T...>;
+using empty_ss = static_string::static_string<char>;
+using space_ss = static_string::static_string<char, ' '>;
+using open_parens_ss = static_string::static_string<char, '('>;
+using close_parens_ss = static_string::static_string<char, ')'>;
+
+
+template <typename... T> using ssconcat         = static_string::concat<empty_ss, T...>;
 template <typename P>    using ss_from_provider = static_string::from_provider<P>;
 template <char... chars> using static_string    = static_string::static_string<char, chars...>;
-
-
-using empty_ss = static_string<>;
-using space_ss = static_string<' '>;
-using open_parens_ss = static_string<'('>;
-using close_parens_ss = static_string<')'>;
 
 
 template <typename BeginSS, typename EndSS>
@@ -313,7 +313,7 @@ struct result_is_pointer_or_reference<R(A...)>
 	: is_pointer_or_reference<typename std::remove_cv<R>::type>
 {};
 
-template <typename F, typename QualsSS = empty_ss, bool = result_is_pointer_or_reference<F>::value>
+template <typename F, typename QualsSS, bool = result_is_pointer_or_reference<F>::value>
 struct function_impl;
 
 template <typename R, typename... A, typename QualsSS>
@@ -346,61 +346,30 @@ struct function_impl<R(A...), QualsSS, true> {
 			>;
 };
 
-template <typename R, typename... A>
-struct impl<R(A...)> : function_impl<R(A...)> {};
+#define __TYPEDECL_FUNCTION_IMPL(TOKENS, SSs...) \
+	template <typename R, typename... A> struct impl<R(A...)      TOKENS> : function_impl<R(A...)         , ssconcat<SSs>> {}; \
+	template <typename R, typename... A> struct impl<R(A..., ...) TOKENS> : function_impl<R(A..., varargs), ssconcat<SSs>> {}
 
-template <typename R, typename... A>
-struct impl<R(A..., ...)> : function_impl<R(A..., varargs)> {};
+#define __TYPEDECL_FUNCTION_CONSTNESS_IMPL(TOKENS, SSs...) \
+	__TYPEDECL_FUNCTION_IMPL(      TOKENS,                     ##SSs); \
+	__TYPEDECL_FUNCTION_IMPL(const TOKENS, space_ss, const_ss, ##SSs)
 
-using space_const_ss = ssconcat<space_ss, const_ss>;
+#define __TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL(TOKENS, SSs...) \
+	__TYPEDECL_FUNCTION_CONSTNESS_IMPL(         TOKENS,                    ##SSs); \
+	__TYPEDECL_FUNCTION_CONSTNESS_IMPL(volatile TOKENS, space_ss, volatile_ss, ##SSs)
 
-template <typename R, typename... A>
-struct impl<R(A...) const> : function_impl<R(A...), space_const_ss> {};
+#define __TYPEDECL_FUNCTION_CONST_VOLATILE_REFNESS_IMPL() \
+	__TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL(); \
+	__TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL(&, space_ss, lvalref_ss)
 
-template <typename R, typename... A>
-struct impl<R(A..., ...) const> : function_impl<R(A..., varargs), space_const_ss> {};
 
-using space_volatile_ss = ssconcat<space_ss, volatile_ss>;
+__TYPEDECL_FUNCTION_CONST_VOLATILE_REFNESS_IMPL();
 
-template <typename R, typename... A>
-struct impl<R(A...) volatile> : function_impl<R(A...), space_volatile_ss> {};
 
-template <typename R, typename... A>
-struct impl<R(A..., ...) volatile> : function_impl<R(A..., varargs), space_volatile_ss> {};
-
-using space_const_space_volatile_ss = ssconcat<space_const_ss, space_volatile_ss>;
-
-template <typename R, typename... A>
-struct impl<R(A...) const volatile> : function_impl<R(A...), space_const_space_volatile_ss> {};
-
-template <typename R, typename... A>
-struct impl<R(A..., ...) const volatile> : function_impl<R(A..., varargs), space_const_space_volatile_ss> {};
-
-using space_lvalref_ss = ssconcat<space_ss, lvalref_ss>;
-
-template <typename R, typename... A>
-struct impl<R(A...) &> : function_impl<R(A...), space_lvalref_ss> {};
-
-template <typename R, typename... A>
-struct impl<R(A..., ...) &> : function_impl<R(A..., varargs), space_lvalref_ss> {};
-
-template <typename R, typename... A>
-struct impl<R(A...) const &> : function_impl<R(A...), ssconcat<space_const_ss, space_lvalref_ss>> {};
-
-template <typename R, typename... A>
-struct impl<R(A..., ...) const &> : function_impl<R(A..., varargs), ssconcat<space_const_ss, space_lvalref_ss>> {};
-
-template <typename R, typename... A>
-struct impl<R(A...) volatile &> : function_impl<R(A...), ssconcat<space_volatile_ss, space_lvalref_ss>> {};
-
-template <typename R, typename... A>
-struct impl<R(A..., ...) volatile &> : function_impl<R(A..., varargs), ssconcat<space_volatile_ss, space_lvalref_ss>> {};
-
-template <typename R, typename... A>
-struct impl<R(A...) const volatile &> : function_impl<R(A...), ssconcat<space_const_ss, space_volatile_ss, space_lvalref_ss>> {};
-
-template <typename R, typename... A>
-struct impl<R(A..., ...) const volatile &> : function_impl<R(A..., varargs), ssconcat<space_const_ss, space_volatile_ss, space_lvalref_ss>> {};
+#undef __TYPEDECL_FUNCTION_CONST_VOLATILE_REFNESS_IMPL
+#undef __TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL
+#undef __TYPEDECL_FUNCTION_CONSTNESS_IMPL
+#undef __TYPEDECL_FUNCTION_IMPL
 
 
 template <typename T>
