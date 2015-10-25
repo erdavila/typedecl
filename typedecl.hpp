@@ -197,9 +197,11 @@ struct impl<T&>
 	: address_access_impl<T, lvalref_ss>
 {};
 
+using rvalref_ss = static_string<'&','&'>;
+
 template <typename T>
 struct impl<T&&>
-	: address_access_impl<T, static_string<'&','&'>>
+	: address_access_impl<T, rvalref_ss>
 {};
 
 
@@ -355,12 +357,13 @@ struct function_impl<R(A...), QualsSS, true> {
 	__TYPEDECL_FUNCTION_IMPL(const TOKENS, space_ss, const_ss, ##SSs)
 
 #define __TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL(TOKENS, SSs...) \
-	__TYPEDECL_FUNCTION_CONSTNESS_IMPL(         TOKENS,                    ##SSs); \
+	__TYPEDECL_FUNCTION_CONSTNESS_IMPL(         TOKENS,                        ##SSs); \
 	__TYPEDECL_FUNCTION_CONSTNESS_IMPL(volatile TOKENS, space_ss, volatile_ss, ##SSs)
 
 #define __TYPEDECL_FUNCTION_CONST_VOLATILE_REFNESS_IMPL() \
 	__TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL(); \
-	__TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL(&, space_ss, lvalref_ss)
+	__TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL(&,  space_ss, lvalref_ss); \
+	__TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL(&&, space_ss, rvalref_ss)
 
 
 __TYPEDECL_FUNCTION_CONST_VOLATILE_REFNESS_IMPL();

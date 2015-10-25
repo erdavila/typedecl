@@ -55,7 +55,9 @@ def printerr(*args, **kwargs):
 	     │   └──FunctionCVQualifier¹
 	     │       ├──FunctionConst
 	     │       └──FunctionVolatile
-	     └──FunctionLValRef
+	     └──FunctionRefQualifier¹
+	         ├──FunctionLValRef
+	         └──FunctionRValRef
 
 	¹: Abstract base class
 	²: Mixin
@@ -570,14 +572,20 @@ class FunctionVolatile(FunctionCVQualifier):
 		super().accept_operand(operand)
 
 
-class FunctionLValRef(FunctionQualifier):
-	definition_token = '&'
-
+class FunctionRefQualifier(FunctionQualifier):
 	@classmethod
 	def accept_operand(cls, operand):
 		if not isinstance(operand, (Function, FunctionCVQualifier)):
-			raise Generator.OperationDisallowed('Function lval-ref-qualifier can only be applied to a [cv-qualified] function')
+			raise Generator.OperationDisallowed('Function ref-qualifier can only be applied to a [cv-qualified] function')
 		super().accept_operand(operand)
+
+
+class FunctionLValRef(FunctionRefQualifier):
+	definition_token = '&'
+
+
+class FunctionRValRef(FunctionRefQualifier):
+	definition_token = '&&'
 
 
 ALL_OPERATIONS = [
@@ -603,6 +611,7 @@ ALL_OPERATIONS = [
 	FunctionConst,
 	FunctionVolatile,
 	FunctionLValRef,
+	FunctionRValRef,
 ]
 
 if ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS:
@@ -611,6 +620,7 @@ if ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS:
 			Volatile,  # Const and Volatile have the same relationship with other operations and with one another
 			RValueReference,  # LValueReference and RValueReference have the same relationship with other operations and with one another
 			FunctionVolatile,  # FunctionConst and FunctionVolatile have the same relationship with other operations and with one another
+			FunctionRValRef,  # FunctionLValRef and FunctionRValRef have the same relationship with other operations and with one another
 		]
 
 		functions_ret = []
