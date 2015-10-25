@@ -311,11 +311,11 @@ struct result_is_pointer_or_reference<R(A...)>
 	: is_pointer_or_reference<typename std::remove_cv<R>::type>
 {};
 
-template <typename F, bool = result_is_pointer_or_reference<F>::value>
+template <typename F, typename QualsSS = empty_ss, bool = result_is_pointer_or_reference<F>::value>
 struct function_impl;
 
-template <typename R, typename... A>
-struct function_impl<R(A...), false> {
+template <typename R, typename... A, typename QualsSS>
+struct function_impl<R(A...), QualsSS, false> {
 	using _r_sss = typename impl<R>::template ssstring<>;
 
 	template <typename InfixSSS = empty_sss>
@@ -325,28 +325,38 @@ struct function_impl<R(A...), false> {
 				InfixSSS,
 				open_parens_ss,
 				typename type_list_impl<A...>::sstring,
-				close_parens_ss
+				close_parens_ss,
+				QualsSS
 			>;
 };
 
-template <typename R, typename... A>
-struct function_impl<R(A...), true> {
+template <typename R, typename... A, typename QualsSS>
+struct function_impl<R(A...), QualsSS, true> {
 	template <typename PrefixSSS = empty_sss>
 	using ssstring = typename impl<R>::template ssstring<
 				sssconcat<
 					PrefixSSS,
 					open_parens_ss,
 					typename type_list_impl<A...>::sstring,
-					close_parens_ss
+					close_parens_ss,
+					QualsSS
 				>
 			>;
 };
 
 template <typename R, typename... A>
-struct impl<R(A...)>      : function_impl<R(A...)> {};
+struct impl<R(A...)> : function_impl<R(A...)> {};
 
 template <typename R, typename... A>
 struct impl<R(A..., ...)> : function_impl<R(A..., varargs)> {};
+
+using space_const_ss = ssconcat<space_ss, const_ss>;
+
+template <typename R, typename... A>
+struct impl<R(A...) const> : function_impl<R(A...), space_const_ss> {};
+
+template <typename R, typename... A>
+struct impl<R(A..., ...) const> : function_impl<R(A..., varargs), space_const_ss> {};
 
 
 template <typename T>
