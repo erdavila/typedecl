@@ -358,6 +358,22 @@ struct impl<R(A...) const> : function_impl<R(A...), space_const_ss> {};
 template <typename R, typename... A>
 struct impl<R(A..., ...) const> : function_impl<R(A..., varargs), space_const_ss> {};
 
+using space_volatile_ss = ssconcat<space_ss, volatile_ss>;
+
+template <typename R, typename... A>
+struct impl<R(A...) volatile> : function_impl<R(A...), space_volatile_ss> {};
+
+template <typename R, typename... A>
+struct impl<R(A..., ...) volatile> : function_impl<R(A..., varargs), space_volatile_ss> {};
+
+using space_const_space_volatile_ss = ssconcat<space_const_ss, space_volatile_ss>;
+
+template <typename R, typename... A>
+struct impl<R(A...) const volatile> : function_impl<R(A...), space_const_space_volatile_ss> {};
+
+template <typename R, typename... A>
+struct impl<R(A..., ...) const volatile> : function_impl<R(A..., varargs), space_const_space_volatile_ss> {};
+
 
 template <typename T>
 struct str_provider;
