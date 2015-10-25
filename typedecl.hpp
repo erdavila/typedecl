@@ -190,9 +190,11 @@ struct impl<T*>
 	: address_access_impl<T, static_string<'*'>>
 {};
 
+using lvalref_ss = static_string<'&'>;
+
 template <typename T>
 struct impl<T&>
-	: address_access_impl<T, static_string<'&'>>
+	: address_access_impl<T, lvalref_ss>
 {};
 
 template <typename T>
@@ -373,6 +375,32 @@ struct impl<R(A...) const volatile> : function_impl<R(A...), space_const_space_v
 
 template <typename R, typename... A>
 struct impl<R(A..., ...) const volatile> : function_impl<R(A..., varargs), space_const_space_volatile_ss> {};
+
+using space_lvalref_ss = ssconcat<space_ss, lvalref_ss>;
+
+template <typename R, typename... A>
+struct impl<R(A...) &> : function_impl<R(A...), space_lvalref_ss> {};
+
+template <typename R, typename... A>
+struct impl<R(A..., ...) &> : function_impl<R(A..., varargs), space_lvalref_ss> {};
+
+template <typename R, typename... A>
+struct impl<R(A...) const &> : function_impl<R(A...), ssconcat<space_const_ss, space_lvalref_ss>> {};
+
+template <typename R, typename... A>
+struct impl<R(A..., ...) const &> : function_impl<R(A..., varargs), ssconcat<space_const_ss, space_lvalref_ss>> {};
+
+template <typename R, typename... A>
+struct impl<R(A...) volatile &> : function_impl<R(A...), ssconcat<space_volatile_ss, space_lvalref_ss>> {};
+
+template <typename R, typename... A>
+struct impl<R(A..., ...) volatile &> : function_impl<R(A..., varargs), ssconcat<space_volatile_ss, space_lvalref_ss>> {};
+
+template <typename R, typename... A>
+struct impl<R(A...) const volatile &> : function_impl<R(A...), ssconcat<space_const_ss, space_volatile_ss, space_lvalref_ss>> {};
+
+template <typename R, typename... A>
+struct impl<R(A..., ...) const volatile &> : function_impl<R(A..., varargs), ssconcat<space_const_ss, space_volatile_ss, space_lvalref_ss>> {};
 
 
 template <typename T>
