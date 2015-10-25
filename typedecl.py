@@ -51,8 +51,9 @@ def printerr(*args, **kwargs):
 	     │   │   └──Function2Arg2  ║
 	     │   │       └─────────────╥──FunctionVA2Arg2
 	     │   └──FunctionVA²════════╝
-	     ├──FunctionConst
-	     └──FunctionVolatile
+	     └──FunctionCVQualifier¹
+	         ├──FunctionConst
+	         └──FunctionVolatile
 
 	¹: Abstract base class
 	²: Mixin
@@ -155,7 +156,7 @@ class CVQualifier(Modifier):
 		if isinstance(operand, CVQualifier) and isinstance(operand.operand, CVQualifier):
 			raise Generator.GenerationPruned('At most 2 levels of cv-qualifiers')
 
-		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, (Function, FunctionConst, FunctionVolatile)):
+		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, (Function, FunctionCVQualifier)):
 			# <cv-qualified>(function(x))
 			raise Generator.GenerationPruned('cv-qualifier applied to function is ignored')
 
@@ -192,7 +193,7 @@ class CVQualifier(Modifier):
 			new_array = array_class(qualified_array_operand)
 			return new_array.normalized()
 
-		if isinstance(self.operand, (Function, FunctionConst, FunctionVolatile)):
+		if isinstance(self.operand, (Function, FunctionCVQualifier)):
 			# <cv-qualifier>(function(x)) -> function(x)
 			return self.operand.normalized()
 
@@ -253,7 +254,7 @@ class Pointer(ParenthesizedModifierForArrayAndFunction):
 				# Pointer(Pointer(x))
 				raise Generator.GenerationPruned('At most 2 levels of pointers')
 
-		if isinstance(unqualified_operand, (FunctionConst, FunctionVolatile)):
+		if isinstance(unqualified_operand, FunctionCVQualifier):
 			raise Generator.OperationDisallowed('Cannot point to cv-qualified function')
 
 		super().accept_operand(operand)
@@ -283,7 +284,7 @@ class Reference(ParenthesizedModifierForArrayAndFunction):
 	@classmethod
 	def accept_operand(cls, operand):
 		unqualified_operand = CVQualifier.analyze(operand).without_qualifications
-		if isinstance(unqualified_operand, (FunctionConst, FunctionVolatile)):
+		if isinstance(unqualified_operand, FunctionCVQualifier):
 			raise Generator.OperationDisallowed('Cannot reference cv-qualified function')
 		super().accept_operand(operand)
 
@@ -308,7 +309,7 @@ class Array(Modifier):
 	@classmethod
 	def accept_operand(cls, operand):
 		unqualified_operand = CVQualifier.analyze(operand).without_qualifications
-		if isinstance(unqualified_operand, (Function, FunctionConst, FunctionVolatile)):
+		if isinstance(unqualified_operand, (Function, FunctionCVQualifier)):
 			# array(function(x))
 			raise Generator.OperationDisallowed('Cannot make array of functions')
 
@@ -377,7 +378,7 @@ class FunctionRet(Function):
 	@classmethod
 	def accept_operand(cls, operand):
 		unqualified_operand = CVQualifier.analyze(operand).without_qualifications
-		if isinstance(unqualified_operand, (Array, Function, FunctionConst, FunctionVolatile)):
+		if isinstance(unqualified_operand, (Array, Function, FunctionCVQualifier)):
 			# functionRet(array(x))  or  functionRet(function(x))
 			raise Generator.OperationDisallowed('Cannot return array or function')
 
@@ -420,7 +421,7 @@ class FunctionArg(Function):
 				raise Generator.OperationDisallowed('Function parameter cannot be [reference to] pointer to unsized array')
 			unqualified_operand = unqualified_pointer_operand
 
-		if isinstance(unqualified_operand, (FunctionConst, FunctionVolatile)):
+		if isinstance(unqualified_operand, FunctionCVQualifier):
 			raise Generator.OperationDisallowed('Function parameter cannot be cv-qualified function')
 
 		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, CVQualifier) \
@@ -528,44 +529,45 @@ class FunctionVA2Arg2(Function2Arg2, FunctionVA):
 	pass
 
 
-class FunctionConst(Operation):
+class FunctionCVQualifier(Operation):
+	@classmethod
+	def accept_operand(cls, operand):
+		if not isinstance(operand, Function):
+			raise Generator.OperationDisallowed('Function cv-qualifier can only be applied to a function')
+		super().accept_operand(operand)
+
+	def description(self, plural=False, qualifiers=''):
+		assert plural is False
+		quals = ' ' + self.definition_token + qualifiers
+		return self.operand.description(qualifiers=quals)
+
+	@property
+	def definition(self):
+		return self.operand.definition + ' ' + self.definition_token
+
+	def declaration(self, arg='', qualifiers=''):
+		qual = ' ' + self.definition_token + qualifiers
+		return self.operand.declaration(arg, qualifiers=qual)
+
+
+class FunctionConst(FunctionCVQualifier):
+	definition_token = 'const'
+
 	@classmethod
 	def accept_operand(cls, operand):
 		if not isinstance(operand, Function):
 			raise Generator.OperationDisallowed('Function const-qualifier can only be applied to a function')
 		super().accept_operand(operand)
 
-	def description(self, plural=False, qualifiers=''):
-		assert plural is False
-		quals = ' const' + qualifiers
-		return self.operand.description(qualifiers=quals)
 
-	@property
-	def definition(self):
-		return self.operand.definition + ' const'
+class FunctionVolatile(FunctionCVQualifier):
+	definition_token = 'volatile'
 
-	def declaration(self, arg='', qualifiers=''):
-		quals = ' const' + qualifiers
-		return self.operand.declaration(arg, qualifiers=quals)
-
-
-class FunctionVolatile(Operation):
 	@classmethod
 	def accept_operand(cls, operand):
 		if not isinstance(operand, (Function, FunctionConst)):
 			raise Generator.OperationDisallowed('Function volatile-qualifier can only be applied to a [const-qualified] function')
 		super().accept_operand(operand)
-
-	def description(self, plural=False):
-		assert plural is False
-		return self.operand.description(qualifiers=' volatile')
-
-	@property
-	def definition(self):
-		return self.operand.definition + ' volatile'
-
-	def declaration(self, arg=''):
-		return self.operand.declaration(arg, qualifiers=' volatile')
 
 
 ALL_OPERATIONS = [
