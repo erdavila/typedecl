@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 import sys
 from itertools import repeat
+from collections import namedtuple
 
 MAX_LEVELS = 5
-MAX_TYPES = 6800
-MAX_TESTED_TYPES = 3900
+MAX_TYPES = 1900
+MAX_TESTED_TYPES = 1500
 
-SKIP_NULL_CONSTRUCTIONS = False
-ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS = False
+SKIP_NULL_CONSTRUCTIONS = True
+ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS = True
 
 
 def printerr(*args, **kwargs):
@@ -19,14 +20,14 @@ def printerr(*args, **kwargs):
 	 ├──BasicType
 	 └──Operation¹
 	     ├──Modifier¹
-	     │   ├──CVQualified¹
+	     │   ├──CVQualifier¹
 	     │   │   ├──Const
 	     │   │   │   └────────┐
 	     │   │   └──Volatile  │
 	     │   │       └────────┴──ConstVolatile
 	     │   ├──ParenthesizedModifierForArrayAndFunction¹
 	     │   │   ├──Pointer
-	     │   │   │   └───────────────────╥──PointerActingAsSizedArray
+	     │   │   │   └───────────────────╥──PointerWithArraySize
 	     │   │   └──Reference¹           ║
 	     │   │       ├──LValueReference  ║
 	     │   │       └──RValueReference  ║
@@ -34,22 +35,29 @@ def printerr(*args, **kwargs):
 	     │   │   ├──UnsizedArray         ║
 	     │   │   └───────────────────────╥──SizedArray
 	     │   └──ArraySizeInitializer²════╝
-	     └──Function¹
-	         ├──FunctionRet¹
-	         │   ├──Function0Ret
-	         │   │   └─────────────╥──FunctionVA0Ret
-	         │   ├──Function1Ret   ║
-	         │   │   └─────────────╥──FunctionVA1Ret
-	         │   └──Function2Ret   ║
-	         │       └─────────────╥──FunctionVA2Ret
-	         ├──FunctionArg¹       ║
-	         │   ├──Function1Arg   ║
-	         │   │   └─────────────╥──FunctionVA1Arg
-	         │   ├──Function2Arg1  ║
-	         │   │   └─────────────╥──FunctionVA2Arg1
-	         │   └──Function2Arg2  ║
-	         │       └─────────────╥──FunctionVA2Arg2
-	         └──FunctionVA²════════╝
+	     ├──Function¹
+	     │   ├──FunctionRet¹
+	     │   │   ├──Function0Ret
+	     │   │   │   └─────────────╥──FunctionVA0Ret
+	     │   │   ├──Function1Ret   ║
+	     │   │   │   └─────────────╥──FunctionVA1Ret
+	     │   │   └──Function2Ret   ║
+	     │   │       └─────────────╥──FunctionVA2Ret
+	     │   ├──FunctionArg¹       ║
+	     │   │   ├──Function1Arg   ║
+	     │   │   │   └─────────────╥──FunctionVA1Arg
+	     │   │   ├──Function2Arg1  ║
+	     │   │   │   └─────────────╥──FunctionVA2Arg1
+	     │   │   └──Function2Arg2  ║
+	     │   │       └─────────────╥──FunctionVA2Arg2
+	     │   └──FunctionVA²════════╝
+	     ├──FunctionQualifier¹
+	     │   └──FunctionCVQualifier¹
+	     │       ├──FunctionConst
+	     │       └──FunctionVolatile
+	     └──FunctionRefQualifier¹
+	         ├──FunctionLValRef
+	         └──FunctionRValRef
 
 	¹: Abstract base class
 	²: Mixin
@@ -144,21 +152,19 @@ class Modifier(Operation):
 		return prefix + ' ' + self.operand.description(plural=pluralize_operand_description);
 
 
-class CVQualified(Modifier):
+class CVQualifier(Modifier):
 	classes_by_qualifications = {}
 
 	@classmethod
 	def accept_operand(cls, operand):
-		if isinstance(operand, CVQualified) and \
-			  (cls.qualifications).intersection(operand.collected_qualifications()) != set():
-			# cvQualified1(cvQualified2(x))  &&  cvQualified1 and cvQualified2 have qualifications in common
-			raise Generator.OperationDisallowed('cv-qualification in common')
+		if isinstance(operand, CVQualifier) and isinstance(operand.operand, CVQualifier):
+			raise Generator.GenerationPruned('At most 2 levels of cv-qualifiers')
 
-		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, Function):
+		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, (Function, FunctionQualifier)):
 			# <cv-qualified>(function(x))
-			raise Generator.GenerationPruned('Function cv-qualifier is ignored')
+			raise Generator.GenerationPruned('cv-qualifier applied to function is ignored')
 
-		super(CVQualified, cls).accept_operand(operand)
+		super().accept_operand(operand)
 
 	@property
 	def definition(self):
@@ -176,61 +182,59 @@ class CVQualified(Modifier):
 			return self.operand.declaration(self.definition_token + suffix)
 
 	def normalized(self):
-		if isinstance(self.operand, CVQualified):
-			# <cv-qualified1>(<cv-qualified2>(x)) -> <cv-qualified1 + cv-qualified2>(x)
+		if isinstance(self.operand, CVQualifier):
+			# <cv-qualifier1>(<cv-qualifier2>(x)) -> <cv-qualifier1 + cv-qualifier2>(x)
 			qualifications = (self.qualifications).union(self.operand.qualifications)
 			cls = self.classes_by_qualifications[qualifications]
 			return cls(self.operand.operand).normalized()
 
 		if isinstance(self.operand, Array):
-			# <cv-qualified>(array(x)) -> array(<cv-qualified>(x))
+			# <cv-qualifier>(array(x)) -> array(<cv-qualifier>(x))
 			array = self.operand
 			cv_class = self.__class__
-			new_array_operand = cv_class(array.operand)
+			qualified_array_operand = cv_class(array.operand)
 			array_class = array.__class__
-			new_array = array_class(new_array_operand)
+			new_array = array_class(qualified_array_operand)
 			return new_array.normalized()
 
-		if isinstance(self.operand, Function):
-			# <cv-qualified>(function(x)) -> function(x)
+		if isinstance(self.operand, (Function, FunctionQualifier)):
+			# <cv-qualifier>(function(x)) -> function(x)
 			return self.operand.normalized()
 
 		return super().normalized()
 
-	def collected_qualifications(self):
-		op = self
+	Analysis = namedtuple('Analysis', ['original', 'qualifications', 'without_qualifications'])
+
+	@classmethod
+	def analyze(cls, operand):
+		op = operand
 		quals = set()
-		while isinstance(op, CVQualified):
+		while isinstance(op, CVQualifier):
 			quals.update(op.qualifications)
 			op = op.operand
-		return frozenset(quals)
-
-	@staticmethod
-	def without_qualifications(operand):
-		while isinstance(operand, CVQualified):
-			operand = operand.operand
-		return operand
+		quals = frozenset(quals)
+		return cls.Analysis(operand, quals, op)
 
 
-class Const(CVQualified):
+class Const(CVQualifier):
 	definition_token = 'const'
 	description_prefix = 'const'
 	qualifications = frozenset(['const'])
-CVQualified.classes_by_qualifications[Const.qualifications] = Const
+CVQualifier.classes_by_qualifications[Const.qualifications] = Const
 
 
-class Volatile(CVQualified):
+class Volatile(CVQualifier):
 	definition_token = 'volatile'
 	description_prefix = 'volatile'
 	qualifications = frozenset(['volatile'])
-CVQualified.classes_by_qualifications[Volatile.qualifications] = Volatile
+CVQualifier.classes_by_qualifications[Volatile.qualifications] = Volatile
 
 
 class ConstVolatile(Const, Volatile):
 	definition_token = 'const volatile'
 	description_prefix = 'const volatile'
 	qualifications = frozenset(['const', 'volatile'])
-CVQualified.classes_by_qualifications[ConstVolatile.qualifications] = ConstVolatile
+CVQualifier.classes_by_qualifications[ConstVolatile.qualifications] = ConstVolatile
 
 
 class ParenthesizedModifierForArrayAndFunction(Modifier):
@@ -247,13 +251,17 @@ class Pointer(ParenthesizedModifierForArrayAndFunction):
 
 	@classmethod
 	def accept_operand(cls, operand):
-		op1 = CVQualified.without_qualifications(operand)
-		if isinstance(op1, Pointer):
-			op2 = CVQualified.without_qualifications(op1.operand)
-			if isinstance(op2, Pointer):
+		unqualified_operand = CVQualifier.analyze(operand).without_qualifications
+		if isinstance(unqualified_operand, Pointer):
+			unqualified_operand_operand = CVQualifier.analyze(unqualified_operand.operand).without_qualifications
+			if isinstance(unqualified_operand_operand, Pointer):
 				# Pointer(Pointer(x))
 				raise Generator.GenerationPruned('At most 2 levels of pointers')
-		super(Pointer, cls).accept_operand(operand)
+
+		if isinstance(unqualified_operand, FunctionQualifier):
+			raise Generator.OperationDisallowed('Cannot point to qualified function')
+
+		super().accept_operand(operand)
 
 	def declaration(self, suffix=''):
 		return super().declaration(self.definition_token + suffix)
@@ -270,13 +278,20 @@ class ArraySizeInitializer(Modifier):
 			self.size = last_array_operation.size - 1
 
 
-class PointerActingAsSizedArray(Pointer, ArraySizeInitializer):
+class PointerWithArraySize(Pointer, ArraySizeInitializer):
 	@property
 	def array_operations(self):
 		return self.operand.array_operations + [self]
 
 
 class Reference(ParenthesizedModifierForArrayAndFunction):
+	@classmethod
+	def accept_operand(cls, operand):
+		unqualified_operand = CVQualifier.analyze(operand).without_qualifications
+		if isinstance(unqualified_operand, FunctionQualifier):
+			raise Generator.OperationDisallowed('Cannot reference qualified function')
+		super().accept_operand(operand)
+
 	def declaration(self, suffix=''):
 		return super().declaration(self.definition_token + suffix)
 
@@ -297,8 +312,8 @@ class Array(Modifier):
 
 	@classmethod
 	def accept_operand(cls, operand):
-		unqualified_operand = CVQualified.without_qualifications(operand)
-		if isinstance(unqualified_operand, Function):
+		unqualified_operand = CVQualifier.analyze(operand).without_qualifications
+		if isinstance(unqualified_operand, (Function, FunctionQualifier)):
 			# array(function(x))
 			raise Generator.OperationDisallowed('Cannot make array of functions')
 
@@ -310,7 +325,7 @@ class Array(Modifier):
 			if isinstance(last_array_operation, UnsizedArray):
 				# array(UnsizedArray(x))
 				raise Generator.OperationDisallowed('Cannot make array of unsized arrays')
-		super(Array, cls).accept_operand(operand)
+		super().accept_operand(operand)
 
 	def description(self, plural=False):
 		return super().description(plural=plural, pluralize_operand_description=True)
@@ -346,13 +361,13 @@ class Function(Operation):
 	def definition(self):
 		return self._signature(self.operand.alias)
 
-	def description(self, plural=False):
+	def description(self, plural=False, qualifiers=''):
 		assert plural is False
 		(return_description, arguments_descriptions) = self._return_and_arguments(self.operand.description())
-		return 'function with arguments (%s) returning %s' % (arguments_descriptions, return_description)
+		return 'function%s with arguments (%s) returning %s' % (qualifiers, arguments_descriptions, return_description)
 
-	def declaration(self, infix=''):
-		return self._signature(self.operand.declaration(), infix=infix)
+	def declaration(self, infix='', qualifiers=''):
+		return self._signature(self.operand.declaration(), infix=infix) + qualifiers
 
 	def _signature(self, operand_value, infix=''):
 		result, args_list = self._return_and_arguments(operand_value)
@@ -366,20 +381,20 @@ class Function(Operation):
 class FunctionRet(Function):
 	@classmethod
 	def accept_operand(cls, operand):
-		unqualified_operand = CVQualified.without_qualifications(operand)
-		if isinstance(unqualified_operand, (Array, Function)):
+		unqualified_operand = CVQualifier.analyze(operand).without_qualifications
+		if isinstance(unqualified_operand, (Array, Function, FunctionQualifier)):
 			# functionRet(array(x))  or  functionRet(function(x))
 			raise Generator.OperationDisallowed('Cannot return array or function')
 
-		super(FunctionRet, cls).accept_operand(operand)
+		super().accept_operand(operand)
 
-	def declaration(self, prefix=''):
-		unqualified_operand = CVQualified.without_qualifications(self.operand)
+	def declaration(self, prefix='', qualifiers=''):
+		unqualified_operand = CVQualifier.analyze(self.operand).without_qualifications
 		if isinstance(unqualified_operand, (Pointer, Reference)):
 			_, arguments = self._return_and_arguments(None)
-			return self.operand.declaration(prefix + '(' + arguments + ')')
+			return self.operand.declaration(prefix + '(' + arguments + ')' + qualifiers)
 
-		return super().declaration(prefix)
+		return super().declaration(prefix) + qualifiers
 
 	def _return_and_arguments(self, result):
 		args_list = ', '.join(self._raw_args_list())
@@ -391,7 +406,7 @@ class FunctionArg(Function):
 	def accept_operand(cls, operand):
 		if isinstance(operand, Reference):
 			reference = operand
-			unqualified_reference_operand = CVQualified.without_qualifications(reference.operand)
+			unqualified_reference_operand = CVQualifier.analyze(reference.operand).without_qualifications
 			if isinstance(unqualified_reference_operand, UnsizedArray):
 				# functionArg(reference(UnsizedArray(x)))
 				raise Generator.OperationDisallowed('Function parameter cannot be reference to unsized array')
@@ -400,16 +415,20 @@ class FunctionArg(Function):
 		else:
 			nonreference_operand = operand
 
-		unqualified_operand = CVQualified.without_qualifications(nonreference_operand)
+		unqualified_operand = CVQualifier.analyze(nonreference_operand).without_qualifications
 		while isinstance(unqualified_operand, Pointer):
 			pointer = unqualified_operand
-			unqualified_pointer_operand = CVQualified.without_qualifications(pointer.operand)
+			unqualified_pointer_operand = CVQualifier.analyze(pointer.operand).without_qualifications
 			if isinstance(unqualified_pointer_operand, UnsizedArray):
 				# functionArg(Pointer(UnsizedArray(x)))
-				raise Generator.OperationDisallowed('Function parameter cannot be pointer to unsized array')
+				# functionArg(reference(Pointer(UnsizedArray(x))))
+				raise Generator.OperationDisallowed('Function parameter cannot be [reference to] pointer to unsized array')
 			unqualified_operand = unqualified_pointer_operand
 
-		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, CVQualified) \
+		if isinstance(unqualified_operand, FunctionQualifier):
+			raise Generator.OperationDisallowed('Function parameter cannot be qualified function')
+
+		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, CVQualifier) \
 				and not isinstance(unqualified_operand, Array):
 			# functionArg(<cv-qualified>(x)) -> functionArg(x)
 			raise Generator.GenerationPruned('Argument cv-qualifier is ignored')
@@ -417,26 +436,26 @@ class FunctionArg(Function):
 		super().accept_operand(operand)
 
 	def normalized(self):
-		unqualified_operand = CVQualified.without_qualifications(self.operand)
-
-		if unqualified_operand is not self.operand:
-			assert isinstance(self.operand, CVQualified)
+		operand_analysis = CVQualifier.analyze(self.operand)
+		if operand_analysis.qualifications:
+			assert isinstance(self.operand, CVQualifier)
+			unqualified_operand = operand_analysis.without_qualifications
 			function_class = self.__class__
 			if isinstance(unqualified_operand, Array):
-				# functionArg(<cv-qualified>(array(x))) -> functionArg(Pointer(<cv-qualified>(x)))
-				cv_quals = self.operand.collected_qualifications()
-				cv_class = CVQualified.classes_by_qualifications[cv_quals]
+				# functionArg(<cv-qualifier>(array(x))) -> functionArg(PointerWithArraySize(<cv-qualifier>(x)))
+				cv_class = CVQualifier.classes_by_qualifications[operand_analysis.qualifications]
 				array_operand = unqualified_operand.operand
-				pointer = PointerActingAsSizedArray(cv_class(array_operand))
+				qualified_array_operand = cv_class(array_operand)
+				pointer = PointerWithArraySize(qualified_array_operand)
 				return function_class(pointer).normalized()
 			else:
-				# functionArg(<cv-qualified>(x)) -> functionArg(x)
+				# functionArg(<cv-qualifier>(x)) -> functionArg(x)
 				return function_class(unqualified_operand.normalized()).normalized()
 
 		if isinstance(self.operand, Array):
-			# functionArg(array(x)) -> functionArg(Pointer(x))
+			# functionArg(array(x)) -> functionArg(PointerWithArraySize(x))
 			array = self.operand
-			new_operand = PointerActingAsSizedArray(array.operand)
+			new_operand = PointerWithArraySize(array.operand)
 			function_class = self.__class__
 			return function_class(new_operand).normalized()
 
@@ -514,6 +533,61 @@ class FunctionVA2Arg2(Function2Arg2, FunctionVA):
 	pass
 
 
+class FunctionQualifier(Operation):
+	def description(self, plural=False, qualifiers=''):
+		assert plural is False
+		quals = ' ' + self.definition_token + qualifiers
+		return self.operand.description(qualifiers=quals)
+
+	@property
+	def definition(self):
+		return self.operand.definition + ' ' + self.definition_token
+
+	def declaration(self, arg='', qualifiers=''):
+		qual = ' ' + self.definition_token + qualifiers
+		return self.operand.declaration(arg, qualifiers=qual)
+
+
+class FunctionCVQualifier(FunctionQualifier):
+	pass
+
+
+class FunctionConst(FunctionCVQualifier):
+	definition_token = 'const'
+
+	@classmethod
+	def accept_operand(cls, operand):
+		if not isinstance(operand, Function):
+			raise Generator.OperationDisallowed('Function const-qualifier can only be applied to a function')
+		super().accept_operand(operand)
+
+
+class FunctionVolatile(FunctionCVQualifier):
+	definition_token = 'volatile'
+
+	@classmethod
+	def accept_operand(cls, operand):
+		if not isinstance(operand, (Function, FunctionConst)):
+			raise Generator.OperationDisallowed('Function volatile-qualifier can only be applied to a [const-qualified] function')
+		super().accept_operand(operand)
+
+
+class FunctionRefQualifier(FunctionQualifier):
+	@classmethod
+	def accept_operand(cls, operand):
+		if not isinstance(operand, (Function, FunctionCVQualifier)):
+			raise Generator.OperationDisallowed('Function ref-qualifier can only be applied to a [cv-qualified] function')
+		super().accept_operand(operand)
+
+
+class FunctionLValRef(FunctionRefQualifier):
+	definition_token = '&'
+
+
+class FunctionRValRef(FunctionRefQualifier):
+	definition_token = '&&'
+
+
 ALL_OPERATIONS = [
 	Const,
 	Volatile,
@@ -534,13 +608,19 @@ ALL_OPERATIONS = [
 	#FunctionVA2Ret,
 	#FunctionVA2Arg1,
 	#FunctionVA2Arg2,
+	FunctionConst,
+	FunctionVolatile,
+	FunctionLValRef,
+	FunctionRValRef,
 ]
 
 if ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS:
 	def remove_non_essential_operations(operations):
 		operations_to_remove = [
-			Volatile,         # Const           and Volatile        have the same relationship with other operations and with one another
+			Volatile,  # Const and Volatile have the same relationship with other operations and with one another
 			RValueReference,  # LValueReference and RValueReference have the same relationship with other operations and with one another
+			FunctionVolatile,  # FunctionConst and FunctionVolatile have the same relationship with other operations and with one another
+			FunctionRValRef,  # FunctionLValRef and FunctionRValRef have the same relationship with other operations and with one another
 		]
 
 		functions_ret = []
@@ -576,9 +656,9 @@ class FileWriter:
 
 	def __enter__(self):
 		self.f = open(self.name, 'wt')
+		self.print('#include "typedecl.hpp"')
 		self.print('#include <cassert>')
 		self.print('#include <type_traits>')
-		self.print('#include "typedecl.hpp"')
 		self.print('')
 		self.print('template<typename>void avoid_unused_type_warning(){}')
 		self.print('')
@@ -691,14 +771,14 @@ def main():
 
 
 def debug():
-	type = Function0Ret(LValueReference(UnsizedArray(BasicType('int'))))
+	type = FunctionConst(Function2Ret(Const(BasicType('int'))))
 	printerr(type.description())
 	printerr(type)
 	normalized = type.normalized()
 	printerr(normalized)
 	printerr(type is normalized)
 	printerr(normalized.declaration())
-	printerr('int(&())[]', '# Expected')
+	printerr('const int(char, char) const', '# Expected')
 	sys.exit(1)
 
 
