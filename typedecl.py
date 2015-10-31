@@ -4,8 +4,8 @@ from itertools import repeat
 from collections import namedtuple
 
 MAX_LEVELS = 5
-MAX_TYPES = 800
-MAX_TESTED_TYPES = 600
+MAX_TYPES = 1800
+MAX_TESTED_TYPES = 1500
 
 SKIP_NULL_CONSTRUCTIONS = True
 ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS = True
@@ -34,7 +34,8 @@ def printerr(*args, **kwargs):
 	     │   ├──Array¹                   ║
 	     │   │   ├──UnsizedArray         ║
 	     │   │   └───────────────────────╥──SizedArray
-	     │   └──ArraySizeInitializer²════╝
+	     │   ├──ArraySizeInitializer²════╝
+	     │   └──PointerToMember
 	     ├──Function¹
 	     │   ├──FunctionRet¹
 	     │   │   ├──Function0Ret
@@ -131,13 +132,11 @@ class Operation(Type):
 
 
 class Modifier(Operation):
-	description_prefix_plural = None
-
 	@classmethod
 	def accept_operand(cls, operand):
 		if isinstance(operand, Reference):
 			# modifier(reference(x))
-			raise Generator.OperationDisallowed('Cannot apply modifier to reference')
+			raise Generator.OperationDisallowed('Cannot apply %s to reference' % cls.__name__)
 		super().accept_operand(operand)
 
 	@property
@@ -149,7 +148,7 @@ class Modifier(Operation):
 			prefix = self.description_prefix_plural
 		else:
 			prefix = self.description_prefix
-		return prefix + ' ' + self.operand.description(plural=pluralize_operand_description);
+		return prefix + ' ' + self.operand.description(plural=pluralize_operand_description)
 
 
 class CVQualifier(Modifier):
@@ -172,7 +171,7 @@ class CVQualifier(Modifier):
 
 	def description(self, plural=False):
 		# Forwards pluralization to the operand
-		return self.description_prefix + ' ' + self.operand.description(plural=plural);
+		return self.description_prefix + ' ' + self.operand.description(plural=plural)
 
 	def declaration(self, suffix=''):
 		if isinstance(self.operand, BasicType):
@@ -238,7 +237,8 @@ CVQualifier.classes_by_qualifications[ConstVolatile.qualifications] = ConstVolat
 
 
 class ParenthesizedModifierForArrayAndFunction(Modifier):
-	def declaration(self, argument):
+	def declaration(self, suffix=''):
+		argument = self.definition_token + suffix
 		if isinstance(self.operand, (Array, Function)):
 			argument = '(' + argument + ')'
 		return self.operand.declaration(argument)
@@ -262,9 +262,6 @@ class Pointer(ParenthesizedModifierForArrayAndFunction):
 			raise Generator.OperationDisallowed('Cannot point to qualified function')
 
 		super().accept_operand(operand)
-
-	def declaration(self, suffix=''):
-		return super().declaration(self.definition_token + suffix)
 
 
 class ArraySizeInitializer(Modifier):
@@ -291,9 +288,6 @@ class Reference(ParenthesizedModifierForArrayAndFunction):
 		if isinstance(unqualified_operand, FunctionQualifier):
 			raise Generator.OperationDisallowed('Cannot reference qualified function')
 		super().accept_operand(operand)
-
-	def declaration(self, suffix=''):
-		return super().declaration(self.definition_token + suffix)
 
 
 class LValueReference(Reference):
@@ -390,7 +384,7 @@ class FunctionRet(Function):
 
 	def declaration(self, prefix='', qualifiers=''):
 		unqualified_operand = CVQualifier.analyze(self.operand).without_qualifications
-		if isinstance(unqualified_operand, (Pointer, Reference)):
+		if isinstance(unqualified_operand, (Pointer, PointerToMember, Reference)):
 			_, arguments = self._return_and_arguments(None)
 			return self.operand.declaration(prefix + '(' + arguments + ')' + qualifiers)
 
@@ -588,6 +582,34 @@ class FunctionRValRef(FunctionRefQualifier):
 	definition_token = '&&'
 
 
+class PointerToMember(Modifier):
+	definition_token = ' C::*'
+	description_prefix = 'pointer to member'
+	description_prefix_plural = 'pointers to member'
+
+	@classmethod
+	def accept_operand(cls, operand):
+		if SKIP_NULL_CONSTRUCTIONS and isinstance(operand, FunctionRefQualifier):
+			# PointerToMember(functionRefQualifier(x))
+			raise Generator.GenerationPruned('ref-qualification of a pointed-to member function is ignored')
+		super().accept_operand(operand)
+
+	def normalized(self):
+		unqualified_operand = CVQualifier.analyze(self.operand).without_qualifications
+		if isinstance(unqualified_operand, FunctionRefQualifier):
+			# PointerToMember(functionRefQualifier(x)) -> PointerToMember(x)
+			return PointerToMember(unqualified_operand.operand).normalized()
+		return super().normalized()
+
+	def declaration(self, suffix=''):
+		arg = 'C::*' + suffix
+		if isinstance(self.operand, (Array, Function, FunctionCVQualifier)):
+			arg = '(' + arg + ')'
+		else:
+			arg = ' ' + arg
+		return self.operand.declaration(arg)
+
+
 ALL_OPERATIONS = [
 	Const,
 	Volatile,
@@ -612,6 +634,7 @@ ALL_OPERATIONS = [
 	FunctionVolatile,
 	FunctionLValRef,
 	FunctionRValRef,
+	PointerToMember,
 ]
 
 if ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS:
@@ -660,6 +683,9 @@ class FileWriter:
 		self.print('')
 		self.print('template<typename>void avoid_unused_type_warning(){}')
 		self.print('')
+		self.print('struct C {};')
+		self.print('DEFINE_TYPEDECL(C);')
+		self.print('')
 		self.print('void testTypeDecl() {')
 		self.ident()
 		return self
@@ -697,7 +723,7 @@ class Generator:
 		return cls.total_types - cls.same_cases
 
 	def __init__(self, file):
-		self.f = file;
+		self.f = file
 
 	def generate(self, type):
 		if Generator.total_types >= MAX_TYPES or \

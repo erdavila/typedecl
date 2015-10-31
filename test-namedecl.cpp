@@ -1,6 +1,9 @@
 #include <cassert>
 #include "typedecl.hpp"
 
+struct C {};
+DEFINE_TYPEDECL(C);
+
 void testNameDecl() {
 	assert(namedecl<int>("name") == "int name");
 	assert(namedecl<const int>("name") == "const int name");
@@ -18,4 +21,7 @@ void testNameDecl() {
 	assert(namedecl<void() const volatile>("name") == "void name() const volatile");
 	assert(namedecl<void() &>("name") == "void name() &");
 	assert(namedecl<void() const &>("name") == "void name() const &");
+	assert(namedecl<char C::*>("name") == "char C::* name");
+	assert(namedecl<int(C::*)(char)>("name") == "int(C::* name)(char)");
+	assert(namedecl<char(C::*)[4]>("name") == "char(C::* name)[4]");
 }

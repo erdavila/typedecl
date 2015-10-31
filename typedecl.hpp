@@ -10,9 +10,32 @@ namespace {
 namespace __typedecl {
 
 
-template <typename T, template <typename> class C1, template <typename> class C2>
-struct or_conds
+template <
+		typename T,
+		template <typename> class C1,
+		template <typename> class C2,
+		template <typename> class... CC
+	>
+struct or_conds;
+
+template <
+		typename T,
+		template <typename> class C1,
+		template <typename> class C2
+	>
+struct or_conds<T, C1, C2>
 	: std::integral_constant<bool, C1<T>::value || C2<T>::value>
+{};
+
+template <
+		typename T,
+		template <typename> class C1,
+		template <typename> class C2,
+		template <typename> class C3,
+		template <typename> class... CC
+	>
+struct or_conds<T, C1, C2, C3, CC...>
+	: std::integral_constant<bool, C1<T>::value || or_conds<T, C2, C3, CC...>::value>
 {};
 
 
@@ -159,11 +182,11 @@ template <typename T>
 struct is_array_or_function : or_conds<T, std::is_array, std::is_function>
 {};
 
-template <typename T, typename TokenSS, bool = is_array_or_function<T>::value>
+template <typename T, typename TokenSS, typename BeforeSS = empty_ss, bool = is_array_or_function<T>::value>
 struct address_access_impl;
 
-template <typename T, typename TokenSS>
-struct address_access_impl<T, TokenSS, true> {
+template <typename T, typename TokenSS, typename BeforeSS>
+struct address_access_impl<T, TokenSS, BeforeSS, true> {
 	template <typename SuffixSSS = empty_sss>
 	using ssstring = typename impl<T>::template ssstring<
 			sssconcat<
@@ -175,12 +198,14 @@ struct address_access_impl<T, TokenSS, true> {
 	>;
 };
 
-template <typename T, typename TokenSS>
-struct address_access_impl<T, TokenSS, false> {
+template <typename T, typename TokenSS, typename BeforeSS>
+struct address_access_impl<T, TokenSS, BeforeSS, false> {
 	template <typename SuffixSSS = empty_sss>
 	using ssstring = typename impl<T>::template ssstring<
 			sssconcat<
-				TokenSS, SuffixSSS
+				BeforeSS,
+				TokenSS,
+				SuffixSSS
 			>
 	>;
 };
@@ -304,7 +329,7 @@ struct type_list_impl<T1, T2, U...> {
 
 
 template <typename T>
-struct is_pointer_or_reference : or_conds<T, std::is_pointer, std::is_reference>
+struct is_pointer_or_reference : or_conds<T, std::is_pointer, std::is_member_pointer, std::is_reference>
 {};
 
 template <typename T>
@@ -373,6 +398,23 @@ __TYPEDECL_FUNCTION_CONST_VOLATILE_REFNESS_IMPL();
 #undef __TYPEDECL_FUNCTION_CONST_VOLATILENESS_IMPL
 #undef __TYPEDECL_FUNCTION_CONSTNESS_IMPL
 #undef __TYPEDECL_FUNCTION_IMPL
+
+
+template <typename T, typename C>
+struct impl<T C::*> {
+	using _c_sss = typename impl<C>::template ssstring<>;
+
+	template <typename SuffixSSS = empty_sss>
+	using ssstring = typename address_access_impl<
+			T,
+			ssconcat<
+				typename _c_sss::begin,
+				typename _c_sss::end,
+				static_string<':',':','*'>
+			>,
+			space_ss
+		>::template ssstring<SuffixSSS>;
+};
 
 
 template <typename T>
