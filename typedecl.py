@@ -4,8 +4,8 @@ from itertools import repeat
 from collections import namedtuple
 
 MAX_LEVELS = 5
-MAX_TYPES = 1900
-MAX_TESTED_TYPES = 1500
+MAX_TYPES = 800
+MAX_TESTED_TYPES = 600
 
 SKIP_NULL_CONSTRUCTIONS = True
 ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS = True
@@ -616,32 +616,30 @@ ALL_OPERATIONS = [
 
 if ONLY_ESSENTIAL_CONSTRUCTIONS_VARIATIONS:
 	def remove_non_essential_operations(operations):
-		operations_to_remove = [
+		operations_to_remove = set([
 			Volatile,  # Const and Volatile have the same relationship with other operations and with one another
 			RValueReference,  # LValueReference and RValueReference have the same relationship with other operations and with one another
 			FunctionVolatile,  # FunctionConst and FunctionVolatile have the same relationship with other operations and with one another
 			FunctionRValRef,  # FunctionLValRef and FunctionRValRef have the same relationship with other operations and with one another
-		]
+		])
 
-		functions_ret = []
-		functions_arg = []
-		functions_va_ret = []
-		functions_va_arg = []
+		functions_ret = set()
+		functions_arg = set()
 		for op in operations:
 			if issubclass(op, FunctionRet):
-				if issubclass(op, FunctionVA):
-					functions_va_ret.append(op)
-				else:
-					functions_ret.append(op)
+				functions_ret.add(op)
 			elif issubclass(op, FunctionArg):
-				if issubclass(op, FunctionVA):
-					functions_va_arg.append(op)
-				else:
-					functions_arg.append(op)
+				functions_arg.add(op)
 
-		for group in (functions_ret, functions_arg, functions_va_ret, functions_va_arg):
-			# Removes all operations except one from each group
-			operations_to_remove += group[:-1]
+		def func_key(func):
+			# Prefer vararg version
+			# Prefer more arguments
+			return (issubclass(func, FunctionVA), func.num_args)
+
+		for group in (functions_ret, functions_arg):
+			to_keep = max(group, key=func_key, default=None)
+			group.discard(to_keep)
+			operations_to_remove |= group
 
 		operations[:] = filter(lambda op: op not in operations_to_remove, operations)
 
