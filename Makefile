@@ -1,4 +1,4 @@
-OBJS = test-typedecl.o test-namedecl.o main.o
+OBJS = test-typedecl.o test-namedecl.o test-tmpldecl.o main.o
 MAIN_TARGET = typedecl
 MAIN_TARGET_TEST = test-typedecl.cpp
 EXE := $(MAIN_TARGET)
@@ -10,6 +10,10 @@ LINK     = g++ -Wall $+ -o $@
 
 .PHONY: all
 all: $(EXE)
+
+.PHONY: test
+test: $(EXE)
+	./$<
 
 .PHONY: clean
 clean:
@@ -25,7 +29,7 @@ $(EXE): $(OBJS)
 
 $(MAIN_TARGET_TEST): $(MAIN_TARGET).py
 	./$< $@.tmp
-	@mv $@.tmp $@
+	mv $@.tmp $@
 
 %.o: %.cpp
 	$(MAKEDEPS)

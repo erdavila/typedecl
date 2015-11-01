@@ -21,6 +21,7 @@ void testNameDecl() {
 	assert(namedecl<void() const volatile>("name") == "void name() const volatile");
 	assert(namedecl<void() &>("name") == "void name() &");
 	assert(namedecl<void() const &>("name") == "void name() const &");
+	assert(namedecl<C>("name") == "C name");
 	assert(namedecl<char C::*>("name") == "char C::* name");
 	assert(namedecl<int(C::*)(char)>("name") == "int(C::* name)(char)");
 	assert(namedecl<char(C::*)[4]>("name") == "char(C::* name)[4]");

@@ -421,19 +421,37 @@ struct impl<T C::*> {
 template <typename T>
 struct str_provider;
 
-template <typename T>
-struct basic_type_impl {
-	using _token_ss = ss_from_provider<str_provider<T>>;
+template <template <typename...> class Tmpl>
+struct template_str_provider;
 
+template <typename TokenSS>
+struct basic_type_impl {
 	template <typename SuffixSSS = empty_sss>
-	using ssstring = sssconcat<_token_ss, SuffixSSS>;
+	using ssstring = sssconcat<TokenSS, SuffixSSS>;
 
 	template <typename CVQualSS, typename SuffixSSS>
 	using ssstring_with_cv_qual = sssconcat<
-			ssconcat<CVQualSS, space_ss, _token_ss>,
+			ssconcat<CVQualSS, space_ss, TokenSS>,
 			SuffixSSS
 		>;
 };
+
+template <typename T>
+struct registered_type_impl
+	: basic_type_impl<ss_from_provider<str_provider<T>>>
+{};
+
+template <template <typename...> class Tmpl, typename... Args>
+struct impl<Tmpl<Args...>>
+	: basic_type_impl<
+			ssconcat<
+				ss_from_provider<template_str_provider<Tmpl>>,
+				static_string<'<'>,
+				typename type_list_impl<Args...>::sstring,
+				static_string<'>'>
+			>
+	>
+{};
 
 
 } /* namespace __typedecl */
@@ -457,7 +475,14 @@ inline std::string namedecl(const std::string& name) {
 	namespace { \
 	namespace __typedecl { \
 	template <> struct str_provider<T> { static constexpr const char* str() { return #T; } }; \
-	template <> struct impl<T> : basic_type_impl<T> {}; \
+	template <> struct impl<T> : registered_type_impl<T> {}; \
+	} /* namespace __typedecl */ \
+	} /* unnamed namespace */
+
+#define DEFINE_TEMPLATE_TYPEDECL(T) \
+	namespace { \
+	namespace __typedecl { \
+	template <> struct template_str_provider<T> { static constexpr const char* str() { return #T; } }; \
 	} /* namespace __typedecl */ \
 	} /* unnamed namespace */
 
