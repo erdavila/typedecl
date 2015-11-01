@@ -28,20 +28,25 @@ assert(namedecl<char(*)[3][4]>("PoinerToArrayBiDim") == "char(* PoinerToArrayBiD
 assert(namedecl<int(&)(char, int[], ...)>("callback") == "int(& callback)(char, int*, ...)");
 ```
 
-Custom Types
-------------
-In order for `typedecl` to recognize custom types, they must be registered with the `DEFINE_TYPEDECL` macro.
+Non-Fundamental Types
+---------------------
+`typedecl` recognizes type constructions with fundamental types (void, null_ptr_t,
+bool, char, int, etc.). Other types such as classes and enums must be registered
+with the `DEFINE_TYPEDECL` macro.
 
 ``` c++
 class MyClass {
     ...
 };
 
+enum MyEnum { ... };
+
 DEFINE_TYPEDECL(MyClass);
+DEFINE_TYPEDECL(MyEnum);
 
 void test() {
     assert(typedecl<MyClass>() == "MyClass");
     assert(namedecl<MyClass*[]>("ArrayOfPointersToMyClass") == "MyClass* ArrayOfPointersToMyClass[]");
-    assert(typedecl<int(MyClass&)>() == "int(MyClass&)");
+    assert(typedecl<int(MyEnum&)>() == "int(MyEnum&)");
 }
 ```

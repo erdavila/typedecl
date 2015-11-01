@@ -1,6 +1,7 @@
 #ifndef __ARRAYS_HPP__
 #define __ARRAYS_HPP__
 
+#include <cstddef>
 #include <string>
 #include <type_traits>
 #include "../static-strings/static-strings.hpp"
@@ -462,8 +463,25 @@ inline std::string namedecl(const std::string& name) {
 
 
 DEFINE_TYPEDECL(void);
+DEFINE_TYPEDECL(std::nullptr_t);
+DEFINE_TYPEDECL(bool);
 DEFINE_TYPEDECL(char);
+DEFINE_TYPEDECL(signed char);
+DEFINE_TYPEDECL(unsigned char);
+DEFINE_TYPEDECL(char16_t);
+DEFINE_TYPEDECL(char32_t);
+DEFINE_TYPEDECL(wchar_t);
+DEFINE_TYPEDECL(short int);
 DEFINE_TYPEDECL(int);
+DEFINE_TYPEDECL(long int);
+DEFINE_TYPEDECL(long long int);
+DEFINE_TYPEDECL(unsigned short int);
+DEFINE_TYPEDECL(unsigned int);
+DEFINE_TYPEDECL(unsigned long int);
+DEFINE_TYPEDECL(unsigned long long int);
+DEFINE_TYPEDECL(float);
+DEFINE_TYPEDECL(double);
+DEFINE_TYPEDECL(long double);
 
 
 #endif

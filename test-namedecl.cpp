@@ -24,4 +24,5 @@ void testNameDecl() {
 	assert(namedecl<char C::*>("name") == "char C::* name");
 	assert(namedecl<int(C::*)(char)>("name") == "int(C::* name)(char)");
 	assert(namedecl<char(C::*)[4]>("name") == "char(C::* name)[4]");
+	assert(namedecl<bool(std::nullptr_t)>("is_null") == "bool is_null(std::nullptr_t)");
 }
